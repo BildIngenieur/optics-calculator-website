@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optics Calculators</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+    <a href="index.html" class="brand">Optics Calculators</a>
+    <a href="index.html" class="active">Home</a>
+    <a href="calculators/optics-conversions.html">Conversions</a>
+    <a href="calculators/diffraction-mtf.html">MTF</a>
+    <a href="calculators/thin-lens.html">Thin Lens</a>
+    <a href="calculators/airy-disk.html">Airy Disk</a>
+    <a href="calculators/depth-of-field.html">DOF</a>
+</nav>
+
+<div class="page">
+    <div class="hero">
+        <h1>Optics Calculators</h1>
+        <p>Interactive first-order optical calculators — F/#, NA, MTF, thin lens, Airy disk, depth of field, and more.
+            Formulas from Greivenkamp, <em>Field Guide to Geometrical Optics</em> (SPIE, 2004).</p>
+    </div>
+
+    <div class="section-title">Calculators</div>
+    <div class="card-grid">
+
+        <a class="card" href="calculators/optics-conversions.html">
+            <div class="card-icon">🔁</div>
+            <h3>Optics Conversions</h3>
+            <p>Convert between cone acceptance angle, NA, and F/#. Plot how NA and F/# roll off with field angle (cos φ law).</p>
+            <span class="tag">2 tools</span>
+        </a>
+
+        <a class="card" href="calculators/diffraction-mtf.html">
+            <div class="card-icon">📈</div>
+            <h3>Diffraction-Limited MTF</h3>
+            <p>Plot the OTF/MTF for a diffraction-limited system. Query MTF at any spatial frequency in lp/mm or cyc/deg. Includes working F/# for finite conjugates.</p>
+            <span class="tag">Live plot</span>
+        </a>
+
+        <a class="card" href="calculators/thin-lens.html">
+            <div class="card-icon">🔭</div>
+            <h3>Thin Lens</h3>
+            <p>Solve for image distance, object distance, or focal length. Computes magnification, working F/#, image-space NA, and object-to-image distance L.</p>
+            <span class="tag">3 solve modes</span>
+        </a>
+
+        <a class="card" href="calculators/airy-disk.html">
+            <div class="card-icon">💡</div>
+            <h3>Airy Disk</h3>
+            <p>Airy disk diameter, ring radii, and encircled energy fractions as a function of wavelength and working F/#. Interactive PSF cross-section plot.</p>
+            <span class="tag">Plot + table</span>
+        </a>
+
+        <a class="card" href="calculators/depth-of-field.html">
+            <div class="card-icon">📐</div>
+            <h3>Depth of Focus &amp; Field</h3>
+            <p>Geometrical depth of focus (image side) and depth of field (object side). Near/far limits, hyperfocal distance. Plots DOF vs focus distance.</p>
+            <span class="tag">Live plot</span>
+        </a>
+
+    </div>
+
+    <div class="section-title">Reference</div>
+    <div class="card-grid">
+        <div class="card" style="cursor:default; pointer-events:none;">
+            <div class="card-icon">📖</div>
+            <h3>Greivenkamp (2004)</h3>
+            <p>All formulas sourced from <em>Field Guide to Geometrical Optics</em>, SPIE Field Guides Vol. FG01.</p>
+            <span class="tag">Source</span>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

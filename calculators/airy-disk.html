@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airy Disk — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .ring-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 16px;
+        }
+        .ring-table th {
+            background: var(--blue-light);
+            color: var(--blue);
+            font-weight: 700;
+            text-align: left;
+            padding: 9px 12px;
+            border-bottom: 2px solid var(--blue);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .ring-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: var(--text);
+        }
+        .ring-table tr:last-child td { border-bottom: none; }
+        .ring-table .highlight td { background: var(--blue-light); font-weight: 600; }
+        .ring-table .zero td { color: var(--text-muted); font-style: italic; }
+
+        .airy-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+    <a href="thin-lens.html">Thin Lens</a>
+    <a href="airy-disk.html" class="active">Airy Disk</a>
+    <a href="depth-of-field.html">DOF</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Airy Disk Calculator</h1>
+    <p class="subtitle">Diffraction PSF for an aberration-free circular aperture.
+        <em style="font-size:12px; color:var(--text-muted);">&nbsp;Greivenkamp, Field Guide to Geometrical Optics, p. 88</em>
+    </p>
+
+    <div class="formula-box">
+        <div class="formula-title">Airy Pattern (Greivenkamp, p. 88)</div>
+        <div class="formula-item">
+            <strong>Irradiance pattern:</strong>
+            $$E(r) = E_0 \left[\frac{2J_1(\pi r / \lambda f\!/\!\#_W)}{\pi r / \lambda f\!/\!\#_W}\right]^2$$
+            where $r$ is the radial coordinate and $J_1$ is the first-order Bessel function
+        </div>
+        <div class="formula-item">
+            <strong>Airy disk diameter</strong> (to first zero):
+            $D_\text{Airy} = 2.44\,\lambda\,f\!/\!\#_W$
+        </div>
+        <div class="formula-item">
+            <strong>Working F/#:</strong>
+            $f\!/\!\#_W = (1-m)\,f\!/\!\# = (1-m)\,f/D$
+            &emsp; For $\infty$ object: $m = 0$, so $f\!/\!\#_W = f\!/\!\#$
+        </div>
+        <div class="formula-item" style="font-size:13px; color:var(--text-muted);">
+            Rule of thumb (visible, $\lambda \approx 0.5\,\mu$m): $D_\text{Airy} \approx f\!/\!\#_W$ in µm
+        </div>
+    </div>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="wl">Wavelength λ</label>
+            <input type="number" id="wl" value="525" step="5" min="100" max="2000" oninput="calculate()">
+            <span class="unit">nm</span>
+        </div>
+        <div class="input-group">
+            <label for="fnum">F-number f/#</label>
+            <input type="number" id="fnum" value="4" step="0.1" min="0.5" oninput="calculate()">
+            <span class="unit">—</span>
+        </div>
+        <div class="input-group">
+            <label for="mag">Magnification m</label>
+            <input type="number" id="mag" value="0" step="0.1" oninput="calculate()">
+            <span class="unit" style="font-size:12px;">(0 = ∞ object)</span>
+        </div>
+    </div>
+
+    <div id="results"></div>
+    <div class="chart-wrap" style="height:420px; margin-top:20px;">
+        <canvas id="airyChart"></canvas>
+    </div>
+
+</div>
+
+<script>
+    let airyChart = null;
+
+    // Bessel J1 via Taylor series: J1(x) = Σ_{k=0}^∞ (-1)^k (x/2)^(2k+1) / (k! (k+1)!)
+    // Converges for all finite x with machine precision (no piecewise discontinuities).
+    function J1(x) {
+        if (x === 0) return 0;
+        const half  = x * 0.5;
+        const half2 = half * half;
+        let term = half;   // k=0 term
+        let sum  = term;
+        for (let k = 1; k <= 40; k++) {
+            term *= -half2 / (k * (k + 1));
+            sum  += term;
+            if (Math.abs(term) < Math.abs(sum) * 1e-16) break;
+        }
+        return sum;
+    }
+
+    function airyIntensity(r_norm) {
+        // r_norm = r / (λ f/#W), so argument = π × r_norm
+        if (r_norm === 0) return 1.0;
+        const u = Math.PI * r_norm;
+        const v = 2 * J1(u) / u;
+        return v * v;
+    }
+
+    function calculate() {
+        const wl_nm  = parseFloat(document.getElementById('wl').value);
+        const fnum   = parseFloat(document.getElementById('fnum').value);
+        const m      = parseFloat(document.getElementById('mag').value);
+
+        if ([wl_nm, fnum, m].some(v => isNaN(v))) return;
+        if (wl_nm <= 0 || fnum <= 0) return;
+
+        const wl_um   = wl_nm / 1000;          // µm
+        const fnumW   = (1 - m) * fnum;         // working F/#
+        const D_airy  = 2.44 * wl_um * fnumW;  // Airy disk diameter, µm
+        const r1      = 1.22 * wl_um * fnumW;  // first zero radius, µm
+
+        // Ring data from Greivenkamp p.88
+        const rings = [
+            { name: 'Central max',    rFact: 0,    peak: 1.0,    energy: 83.9, type: 'highlight' },
+            { name: '1st zero',       rFact: 1.22, peak: 0,      energy: null, type: 'zero' },
+            { name: '1st ring max',   rFact: 1.64, peak: 0.0175, energy: 7.1,  type: '' },
+            { name: '2nd zero',       rFact: 2.24, peak: 0,      energy: null, type: 'zero' },
+            { name: '2nd ring max',   rFact: 2.66, peak: 0.0041, energy: 2.8,  type: '' },
+            { name: '3rd zero',       rFact: 3.24, peak: 0,      energy: null, type: 'zero' },
+            { name: '3rd ring max',   rFact: 3.70, peak: 0.0016, energy: 1.5,  type: '' },
+            { name: '4th zero',       rFact: 4.24, peak: 0,      energy: null, type: 'zero' },
+        ];
+
+        const tableRows = rings.map(r => {
+            const radius_um = r.rFact * wl_um * fnumW;
+            const peakStr   = r.peak === 0 ? '0' : r.peak === 1.0 ? '1.000 E₀' : `${r.peak.toFixed(4)} E₀`;
+            const energyStr = r.energy !== null ? `${r.energy}%` : '—';
+            return `<tr class="${r.type}">
+                <td>${r.name}</td>
+                <td>${r.rFact === 0 ? '0' : (r.rFact + ' λf/#W')}</td>
+                <td>${radius_um.toFixed(3)} µm</td>
+                <td>${peakStr}</td>
+                <td>${energyStr}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('results').innerHTML = `
+            <div class="airy-summary">
+                <div class="result-pill">
+                    <div class="label">Working F/#</div>
+                    <div class="value">f/${fnumW.toFixed(3)}<span></span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Airy disk diameter</div>
+                    <div class="value">${D_airy.toFixed(3)}<span> µm</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">First-zero radius</div>
+                    <div class="value">${r1.toFixed(3)}<span> µm</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Rule of thumb</div>
+                    <div class="value" style="font-size:15px;">${(D_airy / fnumW).toFixed(2)}<span> µm per f/#</span></div>
+                </div>
+            </div>
+            <div class="results-box" style="margin-top:4px;">
+                <h3>Ring Structure</h3>
+                <table class="ring-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Radius (normalized)</th>
+                            <th>Radius (physical)</th>
+                            <th>Peak irradiance</th>
+                            <th>Encircled energy</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+            </div>`;
+
+        plotAiry(wl_um, fnumW, r1);
+    }
+
+    function plotAiry(wl_um, fnumW, r1_um) {
+        const ctx = document.getElementById('airyChart').getContext('2d');
+        if (airyChart) airyChart.destroy();
+
+        // Plot from 0 to 4.5 × λ f/#W
+        const rMax = 4.5 * wl_um * fnumW;
+        const N = 500;
+        const pts = [];
+        for (let i = 0; i <= N; i++) {
+            const r = (i / N) * rMax;
+            const rn = r / (wl_um * fnumW);
+            pts.push({ x: r, y: airyIntensity(rn) });
+        }
+
+        // Mirror for negative side
+        const ptsMirror = [];
+        for (let i = N; i >= 0; i--) {
+            const r = (i / N) * rMax;
+            const rn = r / (wl_um * fnumW);
+            ptsMirror.push({ x: -r, y: airyIntensity(rn) });
+        }
+
+        airyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [
+                    {
+                        label: 'Airy pattern (negative r)',
+                        data: ptsMirror,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0,122,255,0.08)',
+                        pointRadius: 0, borderWidth: 2, fill: true, tension: 0
+                    },
+                    {
+                        label: 'Airy pattern',
+                        data: pts,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0,122,255,0.08)',
+                        pointRadius: 0, borderWidth: 2, fill: true, tension: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: ctx => `r = ${Math.abs(ctx[0].parsed.x).toFixed(3)} µm`,
+                            label: ctx => `Relative irradiance: ${ctx.parsed.y.toFixed(4)}`
+                        }
+                    },
+                    annotation: {}
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: 'Radial distance r (µm)' },
+                        min: -4.5 * wl_um * fnumW,
+                        max:  4.5 * wl_um * fnumW
+                    },
+                    y: {
+                        title: { display: true, text: 'Relative Irradiance E/E₀' },
+                        min: -0.02, max: 1.05
+                    }
+                }
+            }
+        });
+    }
+
+    window.onload = () => setTimeout(calculate, 800);
+</script>
+</body>
+</html>

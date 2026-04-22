@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Depth of Field — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .dof-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px,1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .bar-container {
+            height: 28px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 8px;
+            position: relative;
+        }
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007AFF, #34C759);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            font-size: 12px;
+            color: white;
+            font-weight: 600;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+    <a href="thin-lens.html">Thin Lens</a>
+    <a href="airy-disk.html">Airy Disk</a>
+    <a href="depth-of-field.html" class="active">DOF</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Depth of Focus &amp; Field Calculator</h1>
+    <p class="subtitle">Geometrical (first-order) depth of focus and depth of field — no diffraction or aberrations.
+        <em style="font-size:12px; color:var(--text-muted);">&nbsp;Greivenkamp, Field Guide to Geometrical Optics, pp. 35–36</em>
+    </p>
+
+    <div class="formula-box">
+        <div class="formula-title">Depth of Focus &amp; Field (Greivenkamp, pp. 35–36)</div>
+        <div class="formula-item">
+            <strong>Depth of focus</strong> (image-plane tolerance):
+            $$\text{DOF} \approx \pm B'\,f\!/\!\#_W = \pm\frac{B'}{2\,\text{NA}}$$
+            where $B'$ is the maximum allowable blur diameter at the image plane
+        </div>
+        <div class="formula-item">
+            <strong>Depth of field</strong> (object-space range in focus):
+            $$L_\text{NEAR} \approx \frac{L_O \cdot f \cdot D}{f \cdot D - L_O \cdot B'} \qquad L_\text{FAR} \approx \frac{L_O \cdot f \cdot D}{f \cdot D + L_O \cdot B'}$$
+            (thin lens, stop at lens; $L_O$ = object distance, $f$ = focal length, $D$ = aperture diameter)
+        </div>
+        <div class="formula-item">
+            <strong>Hyperfocal distance</strong> — focus here to have $L_\text{FAR} \to \infty$:
+            $$L_H = \frac{f \cdot D}{B'} \qquad \Rightarrow \qquad L_\text{NEAR} \approx \frac{L_H}{2}$$
+        </div>
+        <div class="formula-item">
+            <strong>Working F/#:</strong> $f\!/\!\#_W = (1-m)\,f\!/\!\#$
+            &emsp;
+            <strong>Image-space NA:</strong> $\text{NA} = \dfrac{1}{2\,f\!/\!\#_W}$
+        </div>
+    </div>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="f">Focal length f</label>
+            <input type="number" id="f" value="50" step="1" min="0.01" oninput="calculate()">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="D">Aperture diameter D</label>
+            <input type="number" id="D" value="12.5" step="0.1" min="0.01" oninput="calculate()">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="Lo">Object distance |L₀|</label>
+            <input type="number" id="Lo" value="1000" step="10" min="0" oninput="calculate()">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="Bp">Blur criterion B'</label>
+            <input type="number" id="Bp" value="30" step="1" min="0.001" oninput="calculate()">
+            <span class="unit">µm</span>
+        </div>
+        <div class="input-group">
+            <label for="mag2">Magnification m</label>
+            <input type="number" id="mag2" value="0" step="0.05" oninput="calculate()">
+            <span class="unit" style="font-size:12px;">(0 = ∞ obj, or from thin lens calc)</span>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="chart-wrap" style="height:400px; margin-top:20px;">
+        <canvas id="dofChart"></canvas>
+    </div>
+
+</div>
+
+<script>
+    let dofChart = null;
+
+    function calculate() {
+        const f   = parseFloat(document.getElementById('f').value);
+        const D   = parseFloat(document.getElementById('D').value);
+        const Lo  = parseFloat(document.getElementById('Lo').value);  // magnitude
+        const Bp  = parseFloat(document.getElementById('Bp').value) / 1000; // µm → mm
+        const m   = parseFloat(document.getElementById('mag2').value);
+
+        if ([f, D, Lo, Bp].some(v => isNaN(v) || v <= 0)) return;
+        if (isNaN(m)) return;
+
+        const fnum    = f / D;                    // f/#
+        const fnumW   = (1 - m) * fnum;           // working f/#
+        const NA      = 1 / (2 * Math.abs(fnumW)); // image-space NA
+
+        // Depth of focus (image plane, ± tolerance)
+        const DOF_im  = Bp * Math.abs(fnumW);      // ± mm
+
+        // Hyperfocal distance (Greivenkamp p.36: L_H = f×D/B')
+        // Using positive object-distance convention (magnitudes)
+        const LH      = (f * D) / Bp;              // mm
+
+        // Depth of field (object space, Greivenkamp p.35).
+        // Greivenkamp uses signed L_O < 0 for real objects. Converting to positive magnitudes:
+        //   Near limit (closer to camera, smaller distance): Lo·f·D / (f·D + Lo·B')
+        //   Far  limit (farther from camera, larger distance): Lo·f·D / (f·D - Lo·B')
+        const denom_near = f * D + Lo * Bp;   // always > 0
+        const denom_far  = f * D - Lo * Bp;   // < 0 when Lo > LH (beyond hyperfocal)
+
+        const L_near = (Lo * f * D) / denom_near;                     // closer than Lo
+        const L_far  = denom_far > 0 ? (Lo * f * D) / denom_far : Infinity;  // farther than Lo
+
+        const totalDOF = isFinite(L_far) ? L_far - L_near : Infinity;
+
+        // Adaptive formatter: shows µm when value < 1 mm, otherwise mm with enough sig figs
+        const fmtDist = v => {
+            if (!isFinite(v)) return '∞';
+            if (Math.abs(v) < 0.001) return `${(v * 1000).toFixed(2)} µm`;
+            if (Math.abs(v) < 1)     return `${v.toFixed(4)} mm`;
+            if (Math.abs(v) < 10)    return `${v.toFixed(3)} mm`;
+            if (Math.abs(v) < 100)   return `${v.toFixed(2)} mm`;
+            return `${v.toFixed(1)} mm`;
+        };
+        // DOF displayed in µm when small
+        const fmtDOF = v => {
+            if (!isFinite(v)) return '∞';
+            if (v < 0.01)  return `${(v * 1000).toFixed(2)} µm`;
+            if (v < 1)     return `${(v * 1000).toFixed(1)} µm`;
+            return fmtDist(v);
+        };
+
+        document.getElementById('results').innerHTML = `
+            <div class="dof-summary">
+                <div class="result-pill">
+                    <div class="label">Working F/#</div>
+                    <div class="value">f/${Math.abs(fnumW).toFixed(3)}<span></span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Image-space NA</div>
+                    <div class="value">${NA.toFixed(4)}<span></span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Depth of focus (±)</div>
+                    <div class="value">${(DOF_im * 1000).toFixed(2)}<span> µm</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Hyperfocal distance</div>
+                    <div class="value" style="font-size:16px;">${fmtDist(LH)}<span></span></div>
+                </div>
+            </div>
+            <div class="results-box">
+                <h3>Depth of Field Results</h3>
+                <div class="result-row">
+                    <span class="result-label">Focus distance L₀</span>
+                    <span class="result-value">${fmtDist(Lo)}</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Near limit L<sub>NEAR</sub></span>
+                    <span class="result-value">${fmtDist(L_near)}</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Far limit L<sub>FAR</sub></span>
+                    <span class="result-value">${fmtDist(L_far)}</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Total depth of field</span>
+                    <span class="result-value">${fmtDOF(totalDOF)}</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Focused at hyperfocal?</span>
+                    <span class="result-value" style="color:${Lo >= LH ? '#34C759' : 'var(--text-muted)'};">
+                        ${Lo >= LH ? '✓ Yes — L_FAR = ∞' : `No — focus ${(LH - Lo).toFixed(0)} mm further for ∞ far limit`}
+                    </span>
+                </div>
+            </div>`;
+
+        plotDOF(f, D, Bp, Lo, L_near, L_far, LH);
+    }
+
+    function plotDOF(f, D, Bp, Lo, Lnear, Lfar, LH) {
+        const ctx = document.getElementById('dofChart').getContext('2d');
+        if (dofChart) dofChart.destroy();
+
+        // Plot: DOF range (|L_far| to |L_near|) vs object distance
+        // Sweep object distances from 0.5×f to 2×LH (or 10×Lo, whichever is smaller)
+        const Lmax = Math.min(3 * LH, 10 * Lo, 50000);
+        const Lmin = Math.max(f * 1.05, 1);
+        const N = 300;
+        const nearPts = [], farPts = [], focusPts = [];
+
+        for (let i = 0; i <= N; i++) {
+            const li = Lmin + (i / N) * (Lmax - Lmin);
+            const d_near = f * D + li * Bp;   // near denom (always > 0)
+            const d_far  = f * D - li * Bp;   // far denom (0 at hyperfocal)
+            const ln = (li * f * D) / d_near;
+            const lf = d_far > 0 ? (li * f * D) / d_far : null;
+            if (ln > 0 && ln < Lmax * 2) nearPts.push({ x: li, y: ln });
+            if (lf !== null && lf < Lmax * 2) farPts.push({ x: li, y: lf });
+            focusPts.push({ x: li, y: li });
+        }
+
+        // Hyperfocal vertical line data
+        const hypPts = [{ x: LH, y: Lmin }, { x: LH, y: Lmax }];
+
+        dofChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Near limit (L_NEAR)',
+                        data: nearPts,
+                        borderColor: '#FF6B35',
+                        backgroundColor: 'transparent',
+                        pointRadius: 0, showLine: true, borderWidth: 2, tension: 0
+                    },
+                    {
+                        label: 'Far limit (L_FAR)',
+                        data: farPts,
+                        borderColor: '#34C759',
+                        backgroundColor: 'transparent',
+                        pointRadius: 0, showLine: true, borderWidth: 2, tension: 0, borderDash: [5,3]
+                    },
+                    {
+                        label: 'Focus distance',
+                        data: focusPts,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'transparent',
+                        pointRadius: 0, showLine: true, borderWidth: 1.5, tension: 0, borderDash: [3,3]
+                    },
+                    {
+                        label: 'Hyperfocal L_H',
+                        data: hypPts,
+                        borderColor: '#9B59B6',
+                        backgroundColor: 'transparent',
+                        pointRadius: 0, showLine: true, borderWidth: 2, tension: 0, borderDash: [8,4]
+                    },
+                    {
+                        label: 'Current focus',
+                        data: [{ x: Lo, y: Lo }],
+                        borderColor: '#007AFF',
+                        backgroundColor: '#007AFF',
+                        pointRadius: 7, showLine: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            title: ctx => `Focus = ${ctx[0].parsed.x.toFixed(0)} mm`,
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} mm`
+                        }
+                    }
+                },
+                scales: {
+                    x: { type:'linear', title:{ display:true, text:'Focus distance L₀ (mm)' }, min: Lmin, max: Lmax },
+                    y: { type:'linear', title:{ display:true, text:'Object-space distance (mm)' }, min: Lmin }
+                }
+            }
+        });
+    }
+
+    window.onload = () => setTimeout(calculate, 800);
+</script>
+</body>
+</html>

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optics Conversions — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        /* Bidirectional input styling */
+        .bidir-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: start;
+            margin-bottom: 20px;
+        }
+        .bidir-col {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+        }
+        .bidir-col h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+        .bidir-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: var(--blue);
+            padding-top: 48px;
+        }
+        .input-group.stacked {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .input-group.stacked label { min-width: unset; }
+        .input-group.stacked input { width: 100%; }
+        .input-group.stacked .unit { align-self: flex-end; margin-top: -28px; margin-right: 10px; }
+
+        .result-pill {
+            background: var(--blue-light);
+            border-radius: 7px;
+            padding: 12px 16px;
+            margin-top: 10px;
+        }
+        .result-pill .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 3px;
+        }
+        .result-pill .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .result-pill .value span {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+
+        /* Field angle tab */
+        .field-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .field-controls .input-section { margin-bottom: 0; }
+        .curve-legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+        .curve-legend span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .curve-legend .dot {
+            width: 14px; height: 4px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+
+        @media (max-width: 680px) {
+            .bidir-grid { grid-template-columns: 1fr; }
+            .bidir-arrow { padding-top: 0; transform: rotate(90deg); }
+            .field-controls { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html" class="active">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Optics Conversions</h1>
+    <p class="subtitle">Convert between cone acceptance angle, NA, and F/#, and see how they vary across the field.</p>
+
+    <!-- ── TABS ── -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('tab-convert', this)">Cone Angle / NA / F#</button>
+        <button class="tab-btn"       onclick="switchTab('tab-field',   this)">NA & F# vs Field Angle</button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 1 — Cone Angle / NA / F# Converter
+    ══════════════════════════════════════════════════════ -->
+    <div id="tab-convert" class="tab-panel active">
+
+        <div class="formula-box">
+            <div class="formula-title">Relationships (in air, n = 1)</div>
+            <div class="formula-item">
+                $\text{NA} = \sin\!\left(\theta_{\text{half}}\right)$
+                &nbsp;where $\theta_{\text{half}}$ is the half-angle of the acceptance cone
+            </div>
+            <div class="formula-item">
+                $\text{F\#} = \dfrac{1}{2\,\text{NA}}$
+                &emsp;(paraxial / image-space in air)
+            </div>
+            <div class="formula-item">
+                $\theta_{\text{full}} = 2\arcsin(\text{NA})$
+            </div>
+        </div>
+
+        <!-- Input: enter any one of the three -->
+        <div class="input-section" style="margin-bottom:16px;">
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+                Enter <strong>any one</strong> of the three values and click Calculate. The others are derived automatically.
+            </p>
+            <div class="input-group">
+                <label for="c1-halfangle">Half-angle (θ½)</label>
+                <input type="number" id="c1-halfangle" placeholder="e.g. 14.5" step="0.1" min="0" max="89.9">
+                <span class="unit">°</span>
+            </div>
+            <div class="input-group">
+                <label for="c1-na">Numerical Aperture</label>
+                <input type="number" id="c1-na" placeholder="e.g. 0.25" step="0.01" min="0" max="0.9999">
+                <span class="unit">—</span>
+            </div>
+            <div class="input-group">
+                <label for="c1-fnum">F-number (F/#)</label>
+                <input type="number" id="c1-fnum" placeholder="e.g. 2.0" step="0.1" min="0.5">
+                <span class="unit">—</span>
+            </div>
+            <button class="btn" onclick="convertAngles()">Calculate</button>
+        </div>
+
+        <div id="convert-results" style="display:none;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:8px;">
+                <div class="result-pill">
+                    <div class="label">Half-angle (θ½)</div>
+                    <div class="value" id="out-half">—<span>°</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Full cone angle</div>
+                    <div class="value" id="out-full">—<span>°</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Numerical Aperture</div>
+                    <div class="value" id="out-na">—<span></span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">F-number</div>
+                    <div class="value" id="out-fnum">—<span></span></div>
+                </div>
+            </div>
+            <p id="convert-note" style="font-size:12px;color:var(--text-muted);margin-top:6px;"></p>
+        </div>
+        <p id="convert-error" class="error"></p>
+
+    </div><!-- /tab-convert -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 2 — NA & F/# vs Field Angle
+    ══════════════════════════════════════════════════════ -->
+    <div id="tab-field" class="tab-panel">
+
+        <div class="formula-box">
+            <div class="formula-title">Effective NA and F/# at field angle φ</div>
+            <div class="formula-item">
+                As the field angle $\varphi$ increases, the marginal ray bundle tilts relative to the optical axis.
+                For a rotationally symmetric lens <strong>without vignetting</strong>, the projected aperture shrinks by $\cos\varphi$:
+            </div>
+            <div class="formula-item">
+                $$\text{NA}_\text{eff}(\varphi) = \text{NA}_0 \cdot \cos\varphi$$
+            </div>
+            <div class="formula-item">
+                $$\text{F\#}_\text{eff}(\varphi) = \frac{\text{F\#}_0}{\cos\varphi}$$
+            </div>
+            <div class="formula-item" style="font-size:13px;color:var(--text-muted);">
+                This is the first-order (paraxial) result underlying the $\cos^4\!\varphi$ illumination falloff law.
+                Real systems with vignetting will show steeper rolloff.
+            </div>
+        </div>
+
+        <div class="field-controls">
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="f2-na0">On-axis NA</label>
+                    <input type="number" id="f2-na0" value="0.25" step="0.01" min="0.001" max="0.9">
+                    <span class="unit">—</span>
+                </div>
+                <div class="input-group">
+                    <label for="f2-maxfov">Max field angle</label>
+                    <input type="number" id="f2-maxfov" value="40" step="1" min="1" max="89">
+                    <span class="unit">° (half)</span>
+                </div>
+                <button class="btn" onclick="calcFieldAngle()">Plot</button>
+            </div>
+            <div class="input-section" id="f2-summary" style="display:none;">
+                <div class="result-row"><span class="result-label">On-axis NA</span><span class="result-value" id="f2-na0-disp">—</span></div>
+                <div class="result-row"><span class="result-label">On-axis F/#</span><span class="result-value" id="f2-fnum0-disp">—</span></div>
+                <div class="result-row" style="margin-top:10px;"><span class="result-label">NA at max field</span><span class="result-value" id="f2-namax-disp">—</span></div>
+                <div class="result-row"><span class="result-label">F/# at max field</span><span class="result-value" id="f2-fnummax-disp">—</span></div>
+                <div class="result-row"><span class="result-label">Irradiance factor at max field</span><span class="result-value" id="f2-cos4-disp">—</span></div>
+            </div>
+        </div>
+
+        <div class="chart-wrap" style="margin-top:20px; height:480px;" id="f2-chart-wrap">
+            <canvas id="fieldChart"></canvas>
+        </div>
+
+    </div><!-- /tab-field -->
+
+</div><!-- /calc-page -->
+
+<script>
+// ──────────────────────────────────────────
+// Tab switcher
+// ──────────────────────────────────────────
+function switchTab(id, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    btn.classList.add('active');
+}
+
+// ──────────────────────────────────────────
+// TAB 1 — Cone / NA / F# converter
+// ──────────────────────────────────────────
+function convertAngles() {
+    const errEl = document.getElementById('convert-error');
+    const resEl = document.getElementById('convert-results');
+    errEl.textContent = '';
+    resEl.style.display = 'none';
+
+    const halfDeg = parseFloat(document.getElementById('c1-halfangle').value);
+    const naIn    = parseFloat(document.getElementById('c1-na').value);
+    const fnumIn  = parseFloat(document.getElementById('c1-fnum').value);
+
+    const valid = v => !isNaN(v) && isFinite(v);
+    const inputs = [valid(halfDeg), valid(naIn), valid(fnumIn)];
+    const count  = inputs.filter(Boolean).length;
+
+    if (count === 0) { errEl.textContent = 'Enter at least one value.'; return; }
+    if (count > 1)   { errEl.textContent = 'Enter only one value at a time — the others will be computed.'; return; }
+
+    let half_rad, na, fnum;
+    let note = '';
+
+    if (valid(halfDeg)) {
+        if (halfDeg <= 0 || halfDeg >= 90) { errEl.textContent = 'Half-angle must be between 0° and 90°.'; return; }
+        half_rad = halfDeg * Math.PI / 180;
+        na   = Math.sin(half_rad);
+        fnum = 1 / (2 * na);
+        note = `Input: half-angle = ${halfDeg}°`;
+    } else if (valid(naIn)) {
+        if (naIn <= 0 || naIn >= 1) { errEl.textContent = 'NA must be between 0 and 1 (in air).'; return; }
+        na   = naIn;
+        half_rad = Math.asin(na);
+        fnum = 1 / (2 * na);
+        note = `Input: NA = ${naIn}`;
+    } else {
+        if (fnumIn < 0.5) { errEl.textContent = 'F/# must be ≥ 0.5 in air (NA ≤ 1).'; return; }
+        fnum = fnumIn;
+        na   = 1 / (2 * fnum);
+        half_rad = Math.asin(na);
+        note = `Input: F/# = ${fnumIn}`;
+    }
+
+    const halfDeg_out = half_rad * 180 / Math.PI;
+    const fullDeg_out = 2 * halfDeg_out;
+
+    document.getElementById('out-half').innerHTML = `${halfDeg_out.toFixed(3)}<span>°</span>`;
+    document.getElementById('out-full').innerHTML = `${fullDeg_out.toFixed(3)}<span>°</span>`;
+    document.getElementById('out-na').innerHTML   = `${na.toFixed(4)}<span></span>`;
+    document.getElementById('out-fnum').innerHTML = `f/${fnum.toFixed(3)}<span></span>`;
+    document.getElementById('convert-note').textContent = note;
+    resEl.style.display = 'block';
+}
+
+// Allow pressing Enter in any input
+['c1-halfangle','c1-na','c1-fnum'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') convertAngles();
+    });
+});
+
+// ──────────────────────────────────────────
+// TAB 2 — NA & F/# vs Field Angle
+// ──────────────────────────────────────────
+let fieldChart = null;
+
+function calcFieldAngle() {
+    const na0    = parseFloat(document.getElementById('f2-na0').value);
+    const maxFov = parseFloat(document.getElementById('f2-maxfov').value);
+
+    if (isNaN(na0) || na0 <= 0 || na0 >= 1)   { alert('NA must be between 0 and 1.'); return; }
+    if (isNaN(maxFov) || maxFov <= 0 || maxFov >= 90) { alert('Max field angle must be between 1° and 89°.'); return; }
+
+    const fnum0 = 1 / (2 * na0);
+    const N = 200;
+    const angles  = [];
+    const naVals  = [];
+    const fnumVals = [];
+    const cos4Vals = [];
+
+    for (let i = 0; i <= N; i++) {
+        const phi_deg = (i / N) * maxFov;
+        const phi_rad = phi_deg * Math.PI / 180;
+        const cosPhi  = Math.cos(phi_rad);
+        angles.push(phi_deg);
+        naVals.push(na0 * cosPhi);
+        fnumVals.push(fnum0 / cosPhi);
+        cos4Vals.push(Math.pow(cosPhi, 4));
+    }
+
+    // Summary box
+    const naMax   = na0 * Math.cos(maxFov * Math.PI / 180);
+    const fnumMax = fnum0 / Math.cos(maxFov * Math.PI / 180);
+    const cos4Max = Math.pow(Math.cos(maxFov * Math.PI / 180), 4);
+
+    document.getElementById('f2-na0-disp').textContent   = na0.toFixed(4);
+    document.getElementById('f2-fnum0-disp').textContent = `f/${fnum0.toFixed(3)}`;
+    document.getElementById('f2-namax-disp').textContent   = naMax.toFixed(4);
+    document.getElementById('f2-fnummax-disp').textContent = `f/${fnumMax.toFixed(3)}`;
+    document.getElementById('f2-cos4-disp').textContent    = `${(cos4Max * 100).toFixed(1)}%`;
+    document.getElementById('f2-summary').style.display = 'block';
+
+    // Chart
+    const ctx = document.getElementById('fieldChart').getContext('2d');
+    if (fieldChart) fieldChart.destroy();
+
+    fieldChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: angles,
+            datasets: [
+                {
+                    label: 'NA_eff',
+                    data: naVals,
+                    borderColor: '#007AFF',
+                    backgroundColor: 'transparent',
+                    pointRadius: 0,
+                    yAxisID: 'y-na',
+                    borderWidth: 2.5
+                },
+                {
+                    label: 'F/#_eff',
+                    data: fnumVals,
+                    borderColor: '#FF6B35',
+                    backgroundColor: 'transparent',
+                    pointRadius: 0,
+                    yAxisID: 'y-fnum',
+                    borderWidth: 2.5,
+                    borderDash: [6, 3]
+                },
+                {
+                    label: 'Relative irradiance (cos⁴φ)',
+                    data: cos4Vals,
+                    borderColor: '#34C759',
+                    backgroundColor: 'rgba(52,199,89,0.06)',
+                    pointRadius: 0,
+                    yAxisID: 'y-frac',
+                    borderWidth: 2,
+                    borderDash: [3, 3],
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: false },
+                legend: { display: true, position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        title: ctx => `Field angle: ${parseFloat(ctx[0].label).toFixed(1)}°`,
+                        label(ctx) {
+                            if (ctx.dataset.label === 'NA_eff')
+                                return `NA_eff: ${ctx.parsed.y.toFixed(4)}`;
+                            if (ctx.dataset.label === 'F/#_eff')
+                                return `F/#_eff: f/${ctx.parsed.y.toFixed(3)}`;
+                            return `Rel. irradiance: ${(ctx.parsed.y * 100).toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Field Angle φ (°, half-angle)' },
+                    min: 0, max: maxFov
+                },
+                'y-na': {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: 'Effective NA', color: '#007AFF' },
+                    ticks: { color: '#007AFF' },
+                    min: 0
+                },
+                'y-fnum': {
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Effective F/#', color: '#FF6B35' },
+                    ticks: { color: '#FF6B35' },
+                    grid: { display: false },
+                    min: 0
+                },
+                'y-frac': {
+                    type: 'linear',
+                    display: false,
+                    min: 0, max: 1
+                }
+            }
+        }
+    });
+}
+
+// Auto-run tab 2 on first switch
+document.querySelectorAll('.tab-btn')[1].addEventListener('click', function() {
+    if (!fieldChart) calcFieldAngle();
+});
+
+window.onload = () => setTimeout(() => {}, 500);
+</script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diffraction-Limited MTF — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .freq-query {
+            background: #fff8e1;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+        }
+        .freq-query h4 {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #9a6700;
+            margin-bottom: 12px;
+        }
+        .freq-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .freq-controls select {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        .freq-controls select:focus {
+            outline: none;
+            border-color: var(--blue);
+        }
+        .mtf-query-result {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ffc107;
+            font-size: 14px;
+            display: none;
+        }
+        .mtf-query-result .val { font-weight: 700; color: var(--blue); font-size: 16px; }
+        .mtf-query-result .beyond { color: #d32f2f; font-size: 12px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html" class="active">MTF</a>
+    <a href="thin-lens.html">Thin Lens</a>
+    <a href="airy-disk.html">Airy Disk</a>
+    <a href="depth-of-field.html">DOF</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Diffraction-Limited MTF Calculator</h1>
+    <p class="subtitle">Calculate and plot the diffraction-limited Modulation Transfer Function for optical systems.
+        <em style="font-size:12px; color:var(--text-muted);">&nbsp;Greivenkamp, Field Guide to Geometrical Optics, p. 88</em>
+    </p>
+
+    <div class="formula-box">
+        <div class="formula-title">Formulas</div>
+        <div class="formula-item">
+            <strong>Diffraction-Limited MTF:</strong>
+            $$\text{MTF}(\xi) = \frac{2}{\pi} \left[ \arccos(\xi) - \xi \sqrt{1 - \xi^2} \right], \quad \xi = \frac{f}{f_\text{cutoff}}$$
+        </div>
+        <div class="formula-item">
+            <strong>Cutoff frequency:</strong>
+            $f_\text{cutoff} = \dfrac{1}{\lambda \cdot f/\#_W}$ &ensp;(lp/mm)
+            &emsp;&emsp;
+            <strong>Working F/#:</strong> $f/\#_W = (1-m)\,f/\#\,$
+            (Greivenkamp p.&nbsp;29)
+        </div>
+        <div class="formula-item">
+            <strong>Frequency conversion:</strong>
+            $\text{lp/mm} = \dfrac{\text{cyc/deg}}{\text{EFL} \times \pi/180}$
+            &emsp;
+            <strong>F/#:</strong> $f/\# = \text{EFL}/D$
+        </div>
+    </div>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="wavelength">Wavelength</label>
+            <input type="number" id="wavelength" value="525" step="1" min="300" max="1100">
+            <span class="unit">nm</span>
+        </div>
+        <div class="input-group">
+            <label for="diameter">Aperture Diameter</label>
+            <input type="number" id="diameter" value="2" step="0.1" min="0.01">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="efl">Effective Focal Length</label>
+            <input type="number" id="efl" value="29.4" step="0.1" min="0.1">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="magnification">Magnification m</label>
+            <input type="number" id="magnification" value="0" step="0.1">
+            <span class="unit" style="font-size:12px;">(0 = ∞ obj)</span>
+        </div>
+    </div>
+
+    <!-- Frequency query panel -->
+    <div class="freq-query">
+        <h4>MTF at specific frequency</h4>
+        <div class="freq-controls">
+            <label for="freqType" style="min-width:unset; font-weight:600; font-size:14px;">Units:</label>
+            <select id="freqType" onchange="onFreqTypeChange()">
+                <option value="cycdeg">cyc/deg</option>
+                <option value="lpmm">lp/mm</option>
+            </select>
+            <input type="number" id="freqValue" value="7.5" step="0.5" min="0"
+                   style="margin-left:0; width:90px;" oninput="updateMTFQuery()">
+            <span id="freqUnit" style="font-size:13px; color:var(--text-muted);">cyc/deg</span>
+        </div>
+        <div class="mtf-query-result" id="queryResult">
+            <span id="queryFreqDisp">—</span> →
+            MTF = <span class="val" id="queryMTFVal">—</span>
+            <div class="beyond" id="queryBeyond" style="display:none;">Beyond diffraction cutoff frequency</div>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="chart-wrap">
+        <canvas id="mtfChart"></canvas>
+    </div>
+</div>
+
+<script>
+    let chart = null;
+    let eflMm = 29.4;
+    let currentMTFData = null;
+
+    function interpolateMTF(targetFreq, freqArray, mtfArray) {
+        if (targetFreq <= 0) return 1.0;
+        if (targetFreq >= freqArray[freqArray.length - 1]) return 0.0;
+        for (let i = 0; i < freqArray.length - 1; i++) {
+            if (freqArray[i] <= targetFreq && freqArray[i + 1] >= targetFreq) {
+                const r = (targetFreq - freqArray[i]) / (freqArray[i + 1] - freqArray[i]);
+                return mtfArray[i] + r * (mtfArray[i + 1] - mtfArray[i]);
+            }
+        }
+        return 0.0;
+    }
+
+    function onFreqTypeChange() {
+        const type = document.getElementById('freqType').value;
+        const unit = document.getElementById('freqUnit');
+        const inp  = document.getElementById('freqValue');
+        if (type === 'cycdeg') {
+            unit.textContent = 'cyc/deg';
+            if (currentMTFData && eflMm > 0) {
+                // convert current lp/mm → cyc/deg
+                const lpMm = parseFloat(inp.value);
+                inp.value = (lpMm * eflMm * Math.PI / 180).toFixed(3);
+            }
+        } else {
+            unit.textContent = 'lp/mm';
+            if (currentMTFData && eflMm > 0) {
+                const cd = parseFloat(inp.value);
+                inp.value = (cd / (eflMm * Math.PI / 180)).toFixed(3);
+            }
+        }
+        updateMTFQuery();
+    }
+
+    function updateMTFQuery() {
+        if (!currentMTFData) return;
+        const type = document.getElementById('freqType').value;
+        const val  = parseFloat(document.getElementById('freqValue').value);
+        if (isNaN(val) || val < 0) return;
+
+        let lpMm, cycDeg;
+        if (type === 'cycdeg') {
+            cycDeg = val;
+            lpMm   = cycDeg / (eflMm * Math.PI / 180);
+        } else {
+            lpMm   = val;
+            cycDeg = lpMm * eflMm * Math.PI / 180;
+        }
+
+        const mtf    = interpolateMTF(lpMm, currentMTFData.freqLpMm, currentMTFData.mtfValues);
+        const beyond = lpMm > currentMTFData.cutoffLpMm;
+
+        document.getElementById('queryResult').style.display = 'block';
+        document.getElementById('queryFreqDisp').textContent =
+            `${lpMm.toFixed(3)} lp/mm | ${cycDeg.toFixed(3)} cyc/deg`;
+        document.getElementById('queryMTFVal').textContent =
+            `${mtf.toFixed(4)} (${(mtf * 100).toFixed(2)}%)`;
+        document.getElementById('queryBeyond').style.display = beyond ? 'block' : 'none';
+    }
+
+    function calculateMTF() {
+        try {
+            const wl  = parseFloat(document.getElementById('wavelength').value) * 1e-6; // nm → mm
+            const D   = parseFloat(document.getElementById('diameter').value);
+            const efl = parseFloat(document.getElementById('efl').value);
+            const m   = parseFloat(document.getElementById('magnification').value);
+            eflMm = efl;
+
+            if ([wl, D, efl].some(v => isNaN(v) || v <= 0))
+                throw new Error("Please enter valid positive values for wavelength, diameter, and EFL.");
+
+            const fnum  = efl / D;                         // f/#
+            const fnumW = (1 - m) * fnum;                  // working f/# (Greivenkamp p.29)
+            const cutoffLpMm   = 1 / (wl * fnumW);        // lp/mm
+            const cutoffCycDeg = cutoffLpMm * eflMm * Math.PI / 180;
+            const angularRes   = 1.22 * (wl * 1e-3) / D;  // radians (wl back to mm, D in mm → rad)
+
+            const N = 400;
+            const freqLpMm = [], mtfValues = [];
+            for (let i = 0; i <= N; i++) {
+                const xi = i / N;
+                freqLpMm.push(xi * cutoffLpMm);
+                mtfValues.push(xi === 0 ? 1.0 : xi >= 1.0 ? 0.0
+                    : (2 / Math.PI) * (Math.acos(xi) - xi * Math.sqrt(1 - xi * xi)));
+            }
+
+            currentMTFData = { freqLpMm, mtfValues, cutoffLpMm, cutoffCycDeg };
+
+            document.getElementById('results').innerHTML = `
+                <div class="results-box">
+                    <h3>System Parameters</h3>
+                    <div class="result-row"><span class="result-label">F-number f/#</span><span class="result-value">f/${fnum.toFixed(3)}</span></div>
+                    <div class="result-row"><span class="result-label">Working F/# f/#<sub>W</sub> (m = ${m})</span><span class="result-value">f/${fnumW.toFixed(3)}</span></div>
+                    <div class="result-row"><span class="result-label">Diffraction cutoff</span><span class="result-value">${cutoffLpMm.toFixed(1)} lp/mm &nbsp;|&nbsp; ${cutoffCycDeg.toFixed(1)} cyc/deg</span></div>
+                    <div class="result-row"><span class="result-label">Angular resolution (1.22λ/D)</span><span class="result-value">${(angularRes * 180/Math.PI * 3600).toFixed(2)} arcsec</span></div>
+                    <div class="result-row"><span class="result-label">EFL × π/180</span><span class="result-value">${(eflMm * Math.PI / 180).toFixed(5)} mm/cyc·deg</span></div>
+                </div>`;
+
+            updateMTFQuery();
+            plotMTF(freqLpMm, mtfValues, cutoffLpMm, cutoffCycDeg);
+
+        } catch (e) {
+            document.getElementById('results').innerHTML = `<p class="error">${e.message}</p>`;
+        }
+    }
+
+    function plotMTF(freqLpMm, mtfValues, cutoffLpMm, cutoffCycDeg) {
+        const ctx = document.getElementById('mtfChart').getContext('2d');
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Diffraction-Limited MTF',
+                    data: freqLpMm.map((f, i) => ({ x: f, y: mtfValues[i] })),
+                    borderColor: '#007AFF',
+                    backgroundColor: 'rgba(0,122,255,0.07)',
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 2.5,
+                    fill: true,
+                    yAxisID: 'y', xAxisID: 'x1'
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: ctx => {
+                                const f = ctx[0].parsed.x;
+                                const cd = f * eflMm * Math.PI / 180;
+                                return `${f.toFixed(3)} lp/mm  |  ${cd.toFixed(3)} cyc/deg`;
+                            },
+                            label: ctx => `MTF: ${ctx.parsed.y.toFixed(4)} (${(ctx.parsed.y*100).toFixed(2)}%)`
+                        }
+                    }
+                },
+                scales: {
+                    x1: {
+                        type: 'linear', position: 'bottom',
+                        title: { display: true, text: 'Spatial Frequency (lp/mm)' },
+                        min: 0, max: cutoffLpMm * 1.05
+                    },
+                    x2: {
+                        type: 'linear', position: 'top',
+                        title: { display: true, text: 'Spatial Frequency (cyc/deg)' },
+                        min: 0, max: cutoffCycDeg * 1.05,
+                        grid: { display: false }
+                    },
+                    y: {
+                        title: { display: true, text: 'MTF' },
+                        min: 0, max: 1.05
+                    }
+                }
+            }
+        });
+    }
+
+    // Wire up live updates
+    ['wavelength','diameter','efl','magnification'].forEach(id => {
+        document.getElementById(id).addEventListener('input', calculateMTF);
+    });
+
+    window.onload = () => setTimeout(calculateMTF, 800);
+</script>
+</body>
+</html>

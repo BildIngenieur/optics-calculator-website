@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thin Lens — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .mode-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .mode-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .mode-btn.active {
+            background: var(--blue);
+            color: white;
+            border-color: var(--blue);
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 16px;
+        }
+        @media (max-width: 600px) { .results-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+    <a href="thin-lens.html" class="active">Thin Lens</a>
+    <a href="airy-disk.html">Airy Disk</a>
+    <a href="depth-of-field.html">DOF</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Thin Lens Calculator</h1>
+    <p class="subtitle">First-order imaging for a thin lens in air.
+        <em style="font-size:12px; color:var(--text-muted);">&nbsp;Greivenkamp, Field Guide to Geometrical Optics, pp. 16–17, 29</em>
+    </p>
+
+    <div class="formula-box">
+        <div class="formula-title">Thin Lens Equations (Greivenkamp, pp. 16–17)</div>
+        <div class="formula-item">
+            <strong>Gaussian lens equation:</strong>
+            $\dfrac{1}{z'} = \dfrac{1}{z} + \dfrac{1}{f}$
+            &emsp; (real objects: $z < 0$; real images: $z' > 0$)
+        </div>
+        <div class="formula-item">
+            <strong>Lateral magnification:</strong>
+            $m = \dfrac{h'}{h} = \dfrac{z'}{z} = \dfrac{u}{u'}$
+        </div>
+        <div class="formula-item">
+            <strong>Object-to-image distance:</strong>
+            $L = z' - z = -\dfrac{(1-m)^2}{m} f_E$
+            &emsp; Minimum at 1:1 imaging: $L_\text{min} = 4f$ (when $m = -1$)
+        </div>
+        <div class="formula-item">
+            <strong>Working F/#</strong> (Greivenkamp, p. 29):
+            $f/\#_W = (1 - m)\,f/\#$
+            &emsp;
+            <strong>Image-space NA:</strong>
+            $\text{NA} = \dfrac{1}{2\,f/\#_W}$
+        </div>
+    </div>
+
+    <!-- Solve mode -->
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Choose what to solve for:</p>
+    <div class="mode-selector">
+        <button class="mode-btn active" onclick="setMode('image', this)">Solve for image distance</button>
+        <button class="mode-btn" onclick="setMode('focal', this)">Solve for focal length</button>
+        <button class="mode-btn" onclick="setMode('object', this)">Solve for object distance</button>
+        <button class="mode-btn" onclick="setMode('magnification', this)">Solve from magnification</button>
+    </div>
+
+    <div class="input-section">
+        <!-- Inputs change based on mode -->
+        <div class="input-group" id="row-f">
+            <label for="inp-f">Focal length f</label>
+            <input type="number" id="inp-f" value="50" step="1">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group" id="row-z">
+            <label for="inp-z">Object distance |z|</label>
+            <input type="number" id="inp-z" value="200" step="1" min="0">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group" id="row-zp" style="display:none;">
+            <label for="inp-zp">Image distance z'</label>
+            <input type="number" id="inp-zp" value="66.7" step="1">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group" id="row-m" style="display:none;">
+            <label for="inp-m">Magnification m</label>
+            <input type="number" id="inp-m" value="-0.5" step="0.01">
+            <span class="unit" style="font-size:12px;">negative = real obj+img</span>
+        </div>
+        <div class="input-group">
+            <label for="inp-h">Object height h <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+            <input type="number" id="inp-h" value="10" step="1">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="inp-D">Aperture diameter D <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+            <input type="number" id="inp-D" value="25" step="1" min="0.01">
+            <span class="unit">mm</span>
+        </div>
+        <button class="btn" onclick="calculate()">Calculate</button>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="chart-wrap" id="chart-wrap" style="display:none; height:400px;">
+        <canvas id="conjugateChart"></canvas>
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin-top:8px;" id="chart-caption" style="display:none;"></p>
+
+</div>
+
+<script>
+    let mode = 'image';
+    let conjChart = null;
+
+    function setMode(m, btn) {
+        mode = m;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Show/hide rows depending on mode
+        document.getElementById('row-f').style.display  = (m === 'focal')         ? 'none' : 'flex';
+        document.getElementById('row-z').style.display  = (m === 'object' || m === 'magnification') ? 'none' : 'flex';
+        document.getElementById('row-zp').style.display = (m === 'image'  || m === 'magnification') ? 'none' : 'flex';
+        document.getElementById('row-m').style.display  = (m === 'magnification') ? 'flex' : 'none';
+    }
+
+    function calculate() {
+        const errEl = document.getElementById('results');
+        try {
+            const f_in  = parseFloat(document.getElementById('inp-f').value);
+            const z_in  = parseFloat(document.getElementById('inp-z').value);   // magnitude entered as positive
+            const zp_in = parseFloat(document.getElementById('inp-zp').value);
+            const h     = parseFloat(document.getElementById('inp-h').value);
+            const D     = parseFloat(document.getElementById('inp-D').value);
+
+            let f, z, zp;  // z is negative (real object), zp is positive (real image)
+
+            if (mode === 'image') {
+                if (isNaN(f_in) || isNaN(z_in)) throw new Error("Enter focal length and object distance.");
+                f  = f_in;
+                z  = -Math.abs(z_in);  // real object → negative
+                zp = 1 / (1/z + 1/f);  // solve for image distance
+
+            } else if (mode === 'focal') {
+                if (isNaN(z_in) || isNaN(zp_in)) throw new Error("Enter object and image distances.");
+                z  = -Math.abs(z_in);
+                zp = zp_in;
+                f  = 1 / (1/zp - 1/z);  // from 1/z' = 1/z + 1/f  →  1/f = 1/z' - 1/z
+
+            } else if (mode === 'object') {
+                if (isNaN(f_in) || isNaN(zp_in)) throw new Error("Enter focal length and image distance.");
+                f  = f_in;
+                zp = zp_in;
+                z  = 1 / (1/zp - 1/f);
+
+            } else { // magnification
+                const m_in = parseFloat(document.getElementById('inp-m').value);
+                if (isNaN(f_in) || isNaN(m_in)) throw new Error("Enter focal length and magnification.");
+                if (m_in === 0) throw new Error("Magnification cannot be zero (object at infinity).");
+                f  = f_in;
+                // From Greivenkamp p.16: 1/m = 1 + z/f  →  z = f(1-m)/m
+                //                        m = 1 - z'/f    →  z' = f(1-m)
+                z  = f * (1 - m_in) / m_in;
+                zp = f * (1 - m_in);
+            }
+
+            const m_mag   = zp / z;                          // lateral magnification
+            const L       = zp - z;                          // total object-to-image distance
+            const fnum    = isNaN(D) || D <= 0 ? null : Math.abs(f) / D;
+            const fnumW   = fnum !== null ? (1 - m_mag) * fnum : null;
+            const NA      = fnumW !== null ? 1 / (2 * Math.abs(fnumW)) : null;
+            const hp      = isNaN(h) ? null : m_mag * h;     // image height
+
+            // Image type
+            const imgType  = zp > 0 ? 'Real image' : 'Virtual image';
+            const objType  = z  < 0 ? 'Real object' : 'Virtual object';
+
+            errEl.innerHTML = `
+                <div class="results-grid">
+                    <div class="results-box">
+                        <h3>Imaging Results</h3>
+                        <div class="result-row"><span class="result-label">Focal length f</span><span class="result-value">${f.toFixed(3)} mm</span></div>
+                        <div class="result-row"><span class="result-label">Object distance z</span><span class="result-value">${z.toFixed(3)} mm <span style="font-size:12px;font-weight:400;color:var(--text-muted)">(${objType})</span></span></div>
+                        <div class="result-row"><span class="result-label">Image distance z'</span><span class="result-value">${zp.toFixed(3)} mm <span style="font-size:12px;font-weight:400;color:var(--text-muted)">(${imgType})</span></span></div>
+                        <div class="result-row"><span class="result-label">Lateral magnification m</span><span class="result-value">${m_mag.toFixed(4)}</span></div>
+                        <div class="result-row"><span class="result-label">Object-to-image distance L</span><span class="result-value">${L.toFixed(3)} mm</span></div>
+                        ${hp !== null ? `<div class="result-row"><span class="result-label">Image height h'</span><span class="result-value">${hp.toFixed(3)} mm</span></div>` : ''}
+                    </div>
+                    <div class="results-box">
+                        <h3>Aperture &amp; Conjugates</h3>
+                        ${fnum !== null ? `
+                        <div class="result-row"><span class="result-label">F-number f/#</span><span class="result-value">f/${fnum.toFixed(3)}</span></div>
+                        <div class="result-row"><span class="result-label">Working F/# f/#<sub>W</sub></span><span class="result-value">f/${Math.abs(fnumW).toFixed(3)}</span></div>
+                        <div class="result-row"><span class="result-label">Image-space NA</span><span class="result-value">${NA.toFixed(4)}</span></div>
+                        ` : '<div style="color:var(--text-muted);font-size:13px;">Enter aperture diameter for F/# and NA</div>'}
+                        <div class="result-row" style="margin-top:${fnum !== null ? '0':'10px'};"><span class="result-label">Min L for real imaging</span><span class="result-value">${(4*Math.abs(f)).toFixed(1)} mm (at 1:1)</span></div>
+                        <div class="result-row"><span class="result-label">Vergence object space</span><span class="result-value">${(1000/Math.abs(z)).toFixed(4)} D</span></div>
+                        <div class="result-row"><span class="result-label">Vergence image space</span><span class="result-value">${(1000/Math.abs(zp)).toFixed(4)} D</span></div>
+                    </div>
+                </div>`;
+
+            plotConjugates(f);
+
+        } catch (e) {
+            errEl.innerHTML = `<p class="error">${e.message}</p>`;
+        }
+    }
+
+    function plotConjugates(f) {
+        const wrap = document.getElementById('chart-wrap');
+        wrap.style.display = 'block';
+        const ctx = document.getElementById('conjugateChart').getContext('2d');
+        if (conjChart) conjChart.destroy();
+
+        // z vs z' curve for a thin lens: z' = fz/(z+f)
+        // Real objects: z < 0, from -8f to -f-ε
+        const pts = [];
+        const N   = 400;
+        const zmin = -8 * Math.abs(f);
+        for (let i = 0; i <= N; i++) {
+            const zi = zmin + (i / N) * (zmin * -0.01 - zmin);  // -8f → near -f
+            if (Math.abs(zi + f) < 0.02 * Math.abs(f)) continue;
+            const zpi = f * zi / (zi + f);
+            if (Math.abs(zpi) < 100 * Math.abs(f)) {
+                pts.push({ x: zi, y: zpi });
+            }
+        }
+
+        // Current operating point
+        const zinp  = -Math.abs(parseFloat(document.getElementById('inp-z').value) || 200);
+        const zpinp = f * zinp / (zinp + f);
+
+        conjChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'z\' vs z (real object)',
+                        data: pts,
+                        borderColor: '#007AFF',
+                        backgroundColor: 'transparent',
+                        pointRadius: 0,
+                        showLine: true,
+                        borderWidth: 2,
+                        tension: 0
+                    },
+                    {
+                        label: 'Current conjugate',
+                        data: [{ x: zinp, y: zpinp }],
+                        borderColor: '#FF6B35',
+                        backgroundColor: '#FF6B35',
+                        pointRadius: 7,
+                        pointHoverRadius: 9,
+                        showLine: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `z = ${ctx.parsed.x.toFixed(1)} mm, z' = ${ctx.parsed.y.toFixed(1)} mm`
+                        }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Object distance z (mm)' } },
+                    y: { title: { display: true, text: "Image distance z' (mm)" } }
+                }
+            }
+        });
+    }
+
+    // Live updates
+    ['inp-f','inp-z','inp-zp','inp-h','inp-D'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', calculate);
+    });
+
+    window.onload = () => setTimeout(calculate, 800);
+</script>
+</body>
+</html>
