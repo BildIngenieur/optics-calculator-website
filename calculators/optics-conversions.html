@@ -128,6 +128,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('tab-convert', this)">Cone Angle / NA / F#</button>
         <button class="tab-btn"       onclick="switchTab('tab-field',   this)">NA & F# vs Field Angle</button>
+        <button class="tab-btn"       onclick="switchTab('tab-steradian', this)">Solid Angle</button>
     </div>
 
     <!-- ══════════════════════════════════════════════════════
@@ -250,6 +251,63 @@
         </div>
 
     </div><!-- /tab-field -->
+
+
+    <!-- ══════════════════════════════════════════════════════
+         TAB 3 — Solid Angle / Steradian
+    ══════════════════════════════════════════════════════ -->
+    <div id="tab-steradian" class="tab-panel">
+
+        <div class="formula-box">
+            <div class="formula-title">Solid angle of a cone (spherical cap)</div>
+            <div class="formula-item">
+                $$\Omega = 2\pi\!\left(1 - \cos\theta\right) \quad \text{steradians}$$
+                where $\theta$ is the <strong>half-cone angle</strong> (angle from axis to edge of cone)
+            </div>
+            <div class="formula-item">
+                Full sphere: $\Omega = 4\pi \approx 12.566\,\text{sr}$ &emsp;
+                Hemisphere ($\theta = 90°$): $\Omega = 2\pi \approx 6.283\,\text{sr}$
+            </div>
+            <div class="formula-item" style="font-size:13px;color:var(--text-muted);">
+                Fraction of full sphere: $\Omega / 4\pi$
+            </div>
+        </div>
+
+        <div class="input-section" style="margin-bottom:16px;">
+            <div class="input-group">
+                <label for="sr-theta">Half-cone angle (θ)</label>
+                <input type="number" id="sr-theta" value="30" step="1" min="0.001" max="179.999">
+                <span class="unit">°</span>
+            </div>
+        </div>
+
+        <div id="sr-results" style="display:none; margin-bottom:20px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:12px;">
+                <div class="result-pill">
+                    <div class="label">Solid angle Ω</div>
+                    <div class="value" id="sr-omega">—<span>sr</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Fraction of sphere</div>
+                    <div class="value" id="sr-frac">—<span>%</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Half-cone angle</div>
+                    <div class="value" id="sr-half">—<span>°</span></div>
+                </div>
+                <div class="result-pill">
+                    <div class="label">Full cone angle</div>
+                    <div class="value" id="sr-full">—<span>°</span></div>
+                </div>
+            </div>
+        </div>
+        <p id="sr-error" class="error"></p>
+
+        <div style="display:flex; justify-content:center; margin-top:10px;">
+            <canvas id="srCanvas" width="360" height="360" style="max-width:100%;"></canvas>
+        </div>
+
+    </div><!-- /tab-steradian -->
 
 </div><!-- /calc-page -->
 
@@ -463,7 +521,153 @@ document.querySelectorAll('.tab-btn')[1].addEventListener('click', function() {
     if (!fieldChart) calcFieldAngle();
 });
 
-window.onload = () => setTimeout(() => {}, 500);
+// ──────────────────────────────────────────
+// TAB 3 — Solid Angle / Steradian
+// ──────────────────────────────────────────
+function calcSteradian() {
+    const errEl = document.getElementById('sr-error');
+    const resEl = document.getElementById('sr-results');
+    errEl.textContent = '';
+    resEl.style.display = 'none';
+
+    const thetaDeg = parseFloat(document.getElementById('sr-theta').value);
+    if (isNaN(thetaDeg) || thetaDeg <= 0 || thetaDeg >= 180) {
+        errEl.textContent = 'Half-cone angle must be between 0° and 180°.';
+        drawSphericalCap(null);
+        return;
+    }
+
+    const thetaRad = thetaDeg * Math.PI / 180;
+    const omega    = 2 * Math.PI * (1 - Math.cos(thetaRad));
+    const frac     = (omega / (4 * Math.PI)) * 100;
+
+    document.getElementById('sr-omega').innerHTML = `${omega.toFixed(4)}<span>sr</span>`;
+    document.getElementById('sr-frac').innerHTML  = `${frac.toFixed(2)}<span>%</span>`;
+    document.getElementById('sr-half').innerHTML  = `${thetaDeg.toFixed(2)}<span>°</span>`;
+    document.getElementById('sr-full').innerHTML  = `${(2 * thetaDeg).toFixed(2)}<span>°</span>`;
+    resEl.style.display = 'block';
+
+    drawSphericalCap(thetaDeg);
+}
+
+function drawSphericalCap(thetaDeg) {
+    const canvas = document.getElementById('srCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Sphere parameters (perspective: viewed slightly from above)
+    const cx = W / 2, cy = H / 2;
+    const R  = Math.min(W, H) * 0.38;
+    const ry = R * 0.36; // y-compression for perspective ellipses
+
+    // Draw full sphere outline
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Draw equator (dashed)
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, R, ry, 0, 0, Math.PI);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, R, ry, 0, Math.PI, 2 * Math.PI);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    if (thetaDeg === null) return;
+
+    const thetaRad = thetaDeg * Math.PI / 180;
+    // Top of sphere is at (cx, cy - R); bottom at (cx, cy + R)
+    // Cap rim is at height R·cos(theta) from center (measured from center toward top pole)
+    const capY  = cy - R * Math.cos(thetaRad);        // y of rim in screen coords
+    const capRx = R * Math.sin(thetaRad);              // x-radius of cap rim ellipse
+    const capRy = capRx * ry / R;                      // y-radius (perspective)
+
+    // Fill spherical cap (clip to upper hemisphere visible area)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, 2 * Math.PI);
+    ctx.clip();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy - R, 0, 0, 0);
+    // Draw cap as filled region between pole and rim ellipse
+    ctx.ellipse(cx, capY, capRx, Math.max(capRy, 1), 0, Math.PI, 0);
+    ctx.lineTo(cx, cy - R);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 122, 255, 0.18)';
+    ctx.fill();
+    ctx.restore();
+
+    // Cap rim ellipse (solid — front, visible part)
+    ctx.beginPath();
+    ctx.ellipse(cx, capY, capRx, Math.max(capRy, 1), 0, Math.PI, 2 * Math.PI);
+    ctx.strokeStyle = '#007AFF';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    // Cap rim ellipse (dashed — back, hidden part)
+    ctx.beginPath();
+    ctx.ellipse(cx, capY, capRx, Math.max(capRy, 1), 0, 0, Math.PI);
+    ctx.strokeStyle = '#007AFF';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Cone lines from center to cap rim (left and right)
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - capRx, capY);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + capRx, capY);
+    ctx.strokeStyle = '#FF6B35';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Axis (vertical, from center to top pole)
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - R - 10);
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Theta arc label
+    const arcR = R * 0.28;
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, -Math.PI / 2, -Math.PI / 2 + thetaRad);
+    ctx.strokeStyle = '#FF6B35';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Labels
+    ctx.font = '13px system-ui, Arial, sans-serif';
+    ctx.fillStyle = '#FF6B35';
+    const labelAngle = -Math.PI / 2 + thetaRad / 2;
+    ctx.fillText('θ', cx + arcR * Math.cos(labelAngle) + 6, cy + arcR * Math.sin(labelAngle) + 4);
+
+    ctx.fillStyle = '#007AFF';
+    ctx.font = 'bold 12px system-ui, Arial, sans-serif';
+    const omega = 2 * Math.PI * (1 - Math.cos(thetaRad));
+    ctx.fillText(`Ω = ${omega.toFixed(3)} sr`, cx - capRx + 4, capY - 8);
+}
+
+document.getElementById('sr-theta').addEventListener('input', calcSteradian);
+
+window.onload = () => setTimeout(() => {
+    calcSteradian();
+}, 500);
 </script>
 </body>
 </html>
