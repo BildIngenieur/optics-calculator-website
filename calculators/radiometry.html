@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radiometry — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .mode-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .mode-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .mode-btn.active {
+            background: var(--blue);
+            color: white;
+            border-color: var(--blue);
+        }
+        .result-pill {
+            background: var(--blue-light);
+            border-radius: 7px;
+            padding: 12px 16px;
+        }
+        .result-pill .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 3px;
+        }
+        .result-pill .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .result-pill .value span {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .pills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .input-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+        @media (max-width: 640px) {
+            .results-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+    <a href="thin-lens.html">Thin Lens</a>
+    <a href="angular-mapping.html">Angular Mapping</a>
+    <a href="radiometry.html" class="active">Radiometry</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Radiometry — Camera Equation</h1>
+    <p class="subtitle">On-axis irradiance at the image plane from an extended Lambertian source.</p>
+
+    <div class="formula-box">
+        <div class="formula-title">Camera Equation (on-axis, Lambertian source)</div>
+        <div class="formula-item">
+            $$E = \frac{\pi\,L\,\tau}{4\,F_w^2} \quad \left[\text{W/m}^2\right]$$
+            where $L$ = source radiance [W/(m²·sr)], $\tau$ = lens transmission, $F_w$ = working F-number
+        </div>
+        <div class="formula-item">
+            $F_w = (1-m)\,F\!\#$
+            &emsp; ($m \le 0$ for real image from real object; $m = 0$ for object at infinity)
+        </div>
+        <div class="formula-item" style="font-size:13px;color:var(--text-muted);">
+            Photometric equivalent: replace $L$ with luminance $L_v$ [cd/m²] to obtain illuminance $E_v$ [lux].
+            Convert: $E\,[\text{W/m}^2] = E_v\,[\text{lux}]\,/\,K_m\,[\text{lm/W}]$.
+        </div>
+        <div class="formula-item">
+            Total flux in image plane: $\;\Phi = E \times A_\text{image}$ &emsp;[W]
+        </div>
+    </div>
+
+    <!-- ── Source ── -->
+    <div class="input-section" style="margin-bottom:16px;">
+        <div class="input-section-title">Source</div>
+        <div class="mode-selector" id="src-modes">
+            <button class="mode-btn active" onclick="setSrcMode('rad', this)">Radiance  W/(m²·sr)</button>
+            <button class="mode-btn"        onclick="setSrcMode('lum', this)">Luminance  cd/m²</button>
+        </div>
+        <div class="input-group">
+            <label id="lbl-src">Source radiance L</label>
+            <input type="number" id="src-val" value="1000" step="any" min="0">
+            <span class="unit" id="unit-src">W/(m²·sr)</span>
+        </div>
+        <div class="input-group" id="row-km" style="display:none;">
+            <label>Luminous efficacy K<sub>m</sub></label>
+            <input type="number" id="km" value="683" step="1" min="1">
+            <span class="unit">lm/W</span>
+        </div>
+    </div>
+
+    <!-- ── Lens ── -->
+    <div class="input-section" style="margin-bottom:16px;">
+        <div class="input-section-title">Lens</div>
+        <div class="mode-selector" id="lens-modes">
+            <button class="mode-btn active" onclick="setLensMode('fd', this)">EFL + Diameter</button>
+            <button class="mode-btn"        onclick="setLensMode('fn', this)">F-number directly</button>
+        </div>
+        <div id="rows-fd">
+            <div class="input-group">
+                <label>Focal length (EFL)</label>
+                <input type="number" id="efl" value="50" step="0.1" min="0.001">
+                <span class="unit">mm</span>
+            </div>
+            <div class="input-group">
+                <label>Aperture diameter D</label>
+                <input type="number" id="diam" value="17.86" step="0.01" min="0.001">
+                <span class="unit">mm</span>
+            </div>
+        </div>
+        <div id="rows-fn" style="display:none;">
+            <div class="input-group">
+                <label>F-number F/#</label>
+                <input type="number" id="fnum-in" value="2.8" step="0.1" min="0.5">
+                <span class="unit">—</span>
+            </div>
+        </div>
+        <div class="input-group" style="margin-top:6px;">
+            <label>Transmission τ</label>
+            <input type="number" id="tau" value="1.0" step="0.01" min="0" max="1">
+            <span class="unit">—</span>
+        </div>
+        <div class="input-group">
+            <label>Magnification m</label>
+            <input type="number" id="mag" value="0" step="0.01">
+            <span class="unit">—</span>
+        </div>
+    </div>
+
+    <!-- ── Image plane (optional) ── -->
+    <div class="input-section" style="margin-bottom:16px;">
+        <div class="input-section-title">Image Plane — optional (for total flux)</div>
+        <div class="input-group">
+            <label>Image width</label>
+            <input type="number" id="img-w" placeholder="e.g. 6.4" step="0.1" min="0">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label>Image height</label>
+            <input type="number" id="img-h" placeholder="e.g. 4.8" step="0.1" min="0">
+            <span class="unit">mm</span>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="chart-wrap" style="margin-top:20px;">
+        <canvas id="radChart"></canvas>
+    </div>
+</div>
+
+<script>
+let srcMode  = 'rad';  // 'rad' | 'lum'
+let lensMode = 'fd';   // 'fd'  | 'fn'
+let radChart = null;
+
+// ── Mode switchers ────────────────────────────────────────────────────────
+function setSrcMode(mode, btn) {
+    srcMode = mode;
+    btn.parentElement.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const isLum = mode === 'lum';
+    document.getElementById('lbl-src').textContent  = isLum ? 'Source luminance Lᵥ' : 'Source radiance L';
+    document.getElementById('unit-src').textContent = isLum ? 'cd/m²' : 'W/(m²·sr)';
+    document.getElementById('row-km').style.display = isLum ? 'flex' : 'none';
+    calculate();
+}
+
+function setLensMode(mode, btn) {
+    lensMode = mode;
+    btn.parentElement.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('rows-fd').style.display = mode === 'fd' ? 'block' : 'none';
+    document.getElementById('rows-fn').style.display = mode === 'fn' ? 'block' : 'none';
+    calculate();
+}
+
+// ── Core calculation ──────────────────────────────────────────────────────
+function calculate() {
+    const errEl = document.getElementById('results');
+
+    // Source
+    const Lraw = parseFloat(document.getElementById('src-val').value);
+    const Km   = parseFloat(document.getElementById('km').value);
+    if (isNaN(Lraw) || Lraw < 0) { errEl.innerHTML = '<p class="error">Source value must be ≥ 0.</p>'; clearChart(); return; }
+    if (srcMode === 'lum' && (isNaN(Km) || Km <= 0)) { errEl.innerHTML = '<p class="error">Luminous efficacy must be positive.</p>'; clearChart(); return; }
+
+    // Lens
+    let fnum;
+    if (lensMode === 'fd') {
+        const efl  = parseFloat(document.getElementById('efl').value);
+        const diam = parseFloat(document.getElementById('diam').value);
+        if (isNaN(efl) || efl <= 0)  { errEl.innerHTML = '<p class="error">EFL must be positive.</p>'; clearChart(); return; }
+        if (isNaN(diam) || diam <= 0) { errEl.innerHTML = '<p class="error">Diameter must be positive.</p>'; clearChart(); return; }
+        fnum = efl / diam;
+    } else {
+        fnum = parseFloat(document.getElementById('fnum-in').value);
+        if (isNaN(fnum) || fnum < 0.5) { errEl.innerHTML = '<p class="error">F-number must be ≥ 0.5.</p>'; clearChart(); return; }
+    }
+
+    const tau = parseFloat(document.getElementById('tau').value);
+    const m   = parseFloat(document.getElementById('mag').value);
+    if (isNaN(tau) || tau < 0 || tau > 1) { errEl.innerHTML = '<p class="error">Transmission τ must be between 0 and 1.</p>'; clearChart(); return; }
+    if (isNaN(m)) { errEl.innerHTML = '<p class="error">Magnification must be a number.</p>'; clearChart(); return; }
+
+    const Fw = (1 - m) * fnum;  // working F-number
+
+    // Camera equation: E = π·L·τ / (4·Fw²)
+    // For 'lum' mode: Lraw is in cd/m², formula gives Ev in lux; E_e = Ev / Km
+    const E_cam = Math.PI * Lraw * tau / (4 * Fw * Fw);
+
+    let E_irrad, E_lux;
+    if (srcMode === 'rad') {
+        E_irrad = E_cam;        // W/m²
+        E_lux   = null;
+    } else {
+        E_lux   = E_cam;        // lux
+        E_irrad = E_cam / Km;   // W/m²
+    }
+
+    // Optional total flux
+    const imgW = parseFloat(document.getElementById('img-w').value);
+    const imgH = parseFloat(document.getElementById('img-h').value);
+    const hasW = !isNaN(imgW) && imgW > 0;
+    const hasH = !isNaN(imgH) && imgH > 0;
+    let fluxHtml = '';
+    if (hasW && hasH) {
+        const A_m2 = (imgW * 1e-3) * (imgH * 1e-3);  // mm² → m²
+        const Phi  = E_irrad * A_m2;
+        fluxHtml = `<div class="results-box">
+            <h3>Total Flux in Image Plane</h3>
+            ${row('Image area', `${(imgW * imgH).toFixed(2)} mm²`)}
+            ${row('Total flux Φ', `${fmtSci(Phi)} W`)}
+        </div>`;
+    } else if (hasW || hasH) {
+        fluxHtml = `<p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">
+            Provide both image width and height for total flux.</p>`;
+    }
+
+    // Pills
+    const lumRow = srcMode === 'lum'
+        ? `<div class="result-pill">
+               <div class="label">Illuminance</div>
+               <div class="value">${fmtSci(E_lux)}<span> lux</span></div>
+           </div>`
+        : '';
+
+    errEl.innerHTML = `
+        <div class="pills-grid">
+            <div class="result-pill">
+                <div class="label">On-axis irradiance</div>
+                <div class="value">${fmtSci(E_irrad)}<span> W/m²</span></div>
+            </div>
+            ${lumRow}
+            <div class="result-pill">
+                <div class="label">Working F/#</div>
+                <div class="value">f/${Fw.toFixed(2)}<span></span></div>
+            </div>
+            <div class="result-pill">
+                <div class="label">Image-space NA</div>
+                <div class="value">${(1 / (2 * Fw)).toFixed(4)}<span></span></div>
+            </div>
+        </div>
+        <div class="results-grid">
+            <div class="results-box">
+                <h3>Lens Parameters</h3>
+                ${row('F-number F/#',    `f/${fnum.toFixed(3)}`)}
+                ${row('Working F-number', `f/${Fw.toFixed(3)}`)}
+                ${row('Image-space NA',  (1 / (2 * Fw)).toFixed(5))}
+                ${row('Transmission τ',  tau.toFixed(3))}
+                ${row('Magnification m', m.toFixed(4))}
+            </div>
+            <div class="results-box">
+                <h3>Image-Plane Irradiance</h3>
+                ${row('On-axis E', `${fmtSci(E_irrad)} W/m²`)}
+                ${srcMode === 'lum' ? row('On-axis E_v', `${fmtSci(E_lux)} lux`) : ''}
+                ${row('π / (4 F_w²)',  (Math.PI / (4 * Fw * Fw)).toFixed(6))}
+                ${row('E per unit L',  `${(Math.PI * tau / (4 * Fw * Fw)).toExponential(3)} (W/m²)/(W/m²sr)`)}
+            </div>
+        </div>
+        ${fluxHtml}`;
+
+    plotChart(fnum, Fw, Lraw, tau, E_irrad);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function row(label, value) {
+    return `<div class="result-row">
+        <span class="result-label">${label}</span>
+        <span class="result-value">${value}</span>
+    </div>`;
+}
+
+function fmtSci(v) {
+    if (!isFinite(v)) return '∞';
+    if (v === 0) return '0';
+    const a = Math.abs(v);
+    if (a >= 0.01 && a < 10000) return v.toPrecision(4);
+    return v.toExponential(3);
+}
+
+function clearChart() {
+    if (radChart) { radChart.destroy(); radChart = null; }
+}
+
+// ── Chart: E vs F/# ──────────────────────────────────────────────────────
+function plotChart(fnum, Fw, Lraw, tau, E_current) {
+    const ctx = document.getElementById('radChart').getContext('2d');
+    clearChart();
+
+    const Lrad = srcMode === 'rad' ? Lraw : Lraw / parseFloat(document.getElementById('km').value);
+    const m    = parseFloat(document.getElementById('mag').value) || 0;
+
+    // Sweep F/# from 0.5 to 32 (log-spaced)
+    const pts = [];
+    const N = 300;
+    for (let i = 0; i <= N; i++) {
+        const fn = Math.exp(Math.log(0.5) + (Math.log(32) - Math.log(0.5)) * i / N);
+        const fw = (1 - m) * fn;
+        pts.push({ x: fn, y: Math.PI * Lrad * tau / (4 * fw * fw) });
+    }
+
+    radChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'On-axis irradiance vs F/#',
+                    data: pts,
+                    borderColor: '#007AFF',
+                    backgroundColor: 'rgba(0,122,255,0.07)',
+                    pointRadius: 0,
+                    borderWidth: 2.5,
+                    showLine: true,
+                    fill: true,
+                    tension: 0
+                },
+                {
+                    label: `Operating point: ${fmtSci(E_current)} W/m² @ f/${fnum.toFixed(2)}`,
+                    data: [{ x: fnum, y: E_current }],
+                    borderColor: '#FF6B35',
+                    backgroundColor: '#FF6B35',
+                    pointRadius: 7,
+                    pointHoverRadius: 9,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            if (ctx.dataset.pointRadius > 4)
+                                return `f/${fnum.toFixed(2)} → ${fmtSci(E_current)} W/m²`;
+                            return `${fmtSci(ctx.parsed.y)} W/m²`;
+                        },
+                        title: ctx => `F/# = f/${ctx[0].parsed.x.toFixed(2)}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'F-number' },
+                    min: 0.5, max: 32,
+                    ticks: {
+                        callback: v => `f/${v}`
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    title: { display: true, text: 'On-axis Irradiance (W/m²)' },
+                    min: 0
+                }
+            }
+        }
+    });
+}
+
+// ── Wire up inputs ────────────────────────────────────────────────────────
+['src-val', 'km', 'efl', 'diam', 'fnum-in', 'tau', 'mag', 'img-w', 'img-h'].forEach(id => {
+    document.getElementById(id).addEventListener('input', calculate);
+});
+
+window.onload = () => setTimeout(calculate, 800);
+</script>
+</body>
+</html>
