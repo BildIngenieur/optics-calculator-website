@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angular Mapping — Optics Calculators</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }
+        };
+    </script>
+    <style>
+        .result-pill {
+            background: var(--blue-light);
+            border-radius: 7px;
+            padding: 12px 16px;
+        }
+        .result-pill .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 3px;
+        }
+        .result-pill .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .result-pill .value span {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .pills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        @media (max-width: 640px) {
+            .results-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="../index.html" class="brand">Optics Calculators</a>
+    <a href="../index.html">Home</a>
+    <a href="optics-conversions.html">Conversions</a>
+    <a href="diffraction-mtf.html">MTF</a>
+    <a href="thin-lens.html">Thin Lens</a>
+    <a href="angular-mapping.html" class="active">Angular Mapping</a>
+</nav>
+
+<div class="calc-page">
+    <a href="../index.html" class="back-link">← All calculators</a>
+    <h1>Angular Mapping</h1>
+    <p class="subtitle">Plate scale, pixels per degree, and angular field of view for a camera–lens system.</p>
+
+    <div class="formula-box">
+        <div class="formula-title">Formulas</div>
+        <div class="formula-item">
+            $$\alpha = \frac{p}{f} \;\text{rad/px}$$
+            where $p$ = pixel pitch and $f$ = effective focal length (same units).
+            Valid to better than 0.01% for $p \ll f$.
+        </div>
+        <div class="formula-item">
+            $\alpha_{\text{arcsec}} = \dfrac{p}{f} \times \dfrac{648\,000}{\pi}$
+            &emsp;
+            $\text{px/deg} = \dfrac{f}{p} \times \dfrac{\pi}{180}$
+        </div>
+        <div class="formula-item">
+            $$\text{FOV} = 2\arctan\!\!\left(\frac{N \cdot p}{2f}\right)$$
+            where $N$ = number of pixels along that dimension (exact formula)
+        </div>
+    </div>
+
+    <div class="input-section">
+        <div class="input-group">
+            <label for="efl">Focal length (EFL)</label>
+            <input type="number" id="efl" value="29.47" step="0.01" min="0.001">
+            <span class="unit">mm</span>
+        </div>
+        <div class="input-group">
+            <label for="pitch">Pixel pitch</label>
+            <input type="number" id="pitch" value="3.76" step="0.01" min="0.001">
+            <span class="unit">µm</span>
+        </div>
+        <div class="input-group">
+            <label for="sens-w">Sensor width <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+            <input type="number" id="sens-w" placeholder="e.g. 3840" step="1" min="1">
+            <span class="unit">px</span>
+        </div>
+        <div class="input-group">
+            <label for="sens-h">Sensor height <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+            <input type="number" id="sens-h" placeholder="e.g. 2160" step="1" min="1">
+            <span class="unit">px</span>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <div class="chart-wrap" style="margin-top:20px;">
+        <canvas id="angChart"></canvas>
+    </div>
+</div>
+
+<script>
+let angChart = null;
+
+function calculate() {
+    const errEl = document.getElementById('results');
+
+    const efl     = parseFloat(document.getElementById('efl').value);
+    const pitchUm = parseFloat(document.getElementById('pitch').value);
+    const sensW   = parseFloat(document.getElementById('sens-w').value);
+    const sensH   = parseFloat(document.getElementById('sens-h').value);
+
+    if (isNaN(efl) || efl <= 0)         { errEl.innerHTML = '<p class="error">EFL must be a positive number.</p>'; plotChart(null); return; }
+    if (isNaN(pitchUm) || pitchUm <= 0) { errEl.innerHTML = '<p class="error">Pixel pitch must be a positive number.</p>'; plotChart(null); return; }
+
+    const pitchMm = pitchUm / 1000;
+
+    // Plate scale (small-angle; error < 0.01% for typical camera systems)
+    const alpha_rad    = pitchMm / efl;
+    const alpha_deg    = alpha_rad * (180 / Math.PI);
+    const alpha_arcmin = alpha_deg * 60;
+    const alpha_arcsec = alpha_deg * 3600;
+    const alpha_mrad   = alpha_rad * 1000;
+    const alpha_urad   = alpha_rad * 1e6;
+
+    const px_per_deg    = 1 / alpha_deg;
+    const px_per_arcmin = 1 / alpha_arcmin;
+    const px_per_arcsec = 1 / alpha_arcsec;
+    const px_per_mrad   = 1 / alpha_mrad;
+
+    // FOV (exact)
+    const hasW = !isNaN(sensW) && sensW > 0;
+    const hasH = !isNaN(sensH) && sensH > 0;
+
+    let fovHtml = '';
+    if (hasW || hasH) {
+        fovHtml = `<div class="results-box">
+            <h3>Angular Field of View</h3>`;
+        if (hasW) {
+            const hfov = 2 * Math.atan(sensW * pitchMm / (2 * efl)) * 180 / Math.PI;
+            fovHtml += row(`H-FOV  (${Math.round(sensW)} px)`, `${hfov.toFixed(3)} °`);
+        }
+        if (hasH) {
+            const vfov = 2 * Math.atan(sensH * pitchMm / (2 * efl)) * 180 / Math.PI;
+            fovHtml += row(`V-FOV  (${Math.round(sensH)} px)`, `${vfov.toFixed(3)} °`);
+        }
+        if (hasW && hasH) {
+            const diag = Math.hypot(sensW, sensH);
+            const dfov = 2 * Math.atan(diag * pitchMm / (2 * efl)) * 180 / Math.PI;
+            fovHtml += row(`Diagonal FOV  (${Math.round(diag)} px)`, `${dfov.toFixed(3)} °`);
+        }
+        fovHtml += `</div>`;
+    }
+
+    errEl.innerHTML = `
+        <div class="pills-grid">
+            <div class="result-pill">
+                <div class="label">Angle / pixel</div>
+                <div class="value">${alpha_arcsec.toFixed(3)}<span> ″/px</span></div>
+            </div>
+            <div class="result-pill">
+                <div class="label">Angle / pixel</div>
+                <div class="value">${alpha_mrad.toFixed(4)}<span> mrad/px</span></div>
+            </div>
+            <div class="result-pill">
+                <div class="label">Pixels / degree</div>
+                <div class="value">${px_per_deg.toFixed(1)}<span> px/°</span></div>
+            </div>
+            <div class="result-pill">
+                <div class="label">Pixels / arcmin</div>
+                <div class="value">${px_per_arcmin.toFixed(2)}<span> px/′</span></div>
+            </div>
+        </div>
+        <div class="results-grid">
+            <div class="results-box">
+                <h3>Angle per Pixel</h3>
+                ${row('arcsec/px',  `${alpha_arcsec.toFixed(4)} ″/px`)}
+                ${row('arcmin/px',  `${alpha_arcmin.toFixed(5)} ′/px`)}
+                ${row('deg/px',     `${alpha_deg.toFixed(6)} °/px`)}
+                ${row('mrad/px',    `${alpha_mrad.toFixed(5)} mrad/px`)}
+                ${row('µrad/px',    `${alpha_urad.toFixed(2)} µrad/px`)}
+            </div>
+            <div class="results-box">
+                <h3>Pixels per Angle</h3>
+                ${row('px / degree',     `${px_per_deg.toFixed(2)} px/°`)}
+                ${row('px / arcminute',  `${px_per_arcmin.toFixed(3)} px/′`)}
+                ${row('px / arcsecond',  `${px_per_arcsec.toFixed(4)} px/″`)}
+                ${row('px / mrad',       `${px_per_mrad.toFixed(3)} px/mrad`)}
+            </div>
+        </div>
+        ${fovHtml}`;
+
+    plotChart(efl, pitchMm, alpha_arcsec);
+}
+
+function row(label, value) {
+    return `<div class="result-row">
+        <span class="result-label">${label}</span>
+        <span class="result-value">${value}</span>
+    </div>`;
+}
+
+function plotChart(efl, pitchMm, currentAlpha) {
+    const ctx = document.getElementById('angChart').getContext('2d');
+    if (angChart) { angChart.destroy(); angChart = null; }
+    if (!efl) return;
+
+    const minEfl = Math.max(0.5, efl * 0.1);
+    const maxEfl = efl * 6;
+    const N = 400;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+        const f = minEfl + (maxEfl - minEfl) * i / N;
+        pts.push({ x: f, y: (pitchMm / f) * (180 / Math.PI) * 3600 });
+    }
+
+    angChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Plate scale vs EFL',
+                    data: pts,
+                    borderColor: '#007AFF',
+                    backgroundColor: 'rgba(0,122,255,0.07)',
+                    pointRadius: 0,
+                    borderWidth: 2.5,
+                    showLine: true,
+                    fill: true,
+                    tension: 0
+                },
+                {
+                    label: `Operating point: ${currentAlpha.toFixed(3)} ″/px @ f=${efl.toFixed(2)} mm`,
+                    data: [{ x: efl, y: currentAlpha }],
+                    borderColor: '#FF6B35',
+                    backgroundColor: '#FF6B35',
+                    pointRadius: 7,
+                    pointHoverRadius: 9,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const d = ctx.dataset;
+                            if (d.pointRadius > 4)
+                                return `EFL = ${efl.toFixed(2)} mm → ${currentAlpha.toFixed(3)} ″/px`;
+                            return `${ctx.parsed.y.toFixed(3)} ″/px`;
+                        },
+                        title: ctx => `EFL = ${ctx[0].parsed.x.toFixed(2)} mm`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Focal Length EFL (mm)' },
+                    min: minEfl, max: maxEfl
+                },
+                y: {
+                    type: 'linear',
+                    title: { display: true, text: 'Plate Scale (arcsec / px)' },
+                    min: 0
+                }
+            }
+        }
+    });
+}
+
+['efl', 'pitch', 'sens-w', 'sens-h'].forEach(id => {
+    document.getElementById(id).addEventListener('input', calculate);
+});
+
+window.onload = () => setTimeout(calculate, 800);
+</script>
+</body>
+</html>
