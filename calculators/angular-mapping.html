@@ -45,11 +45,14 @@
         }
         .results-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 16px;
             margin-bottom: 16px;
         }
-        @media (max-width: 640px) {
+        @media (max-width: 860px) {
+            .results-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 560px) {
             .results-grid { grid-template-columns: 1fr; }
         }
     </style>
@@ -81,6 +84,9 @@
             $\alpha_{\text{arcsec}} = \dfrac{p}{f} \times \dfrac{648\,000}{\pi}$
             &emsp;
             $\text{px/deg} = \dfrac{f}{p} \times \dfrac{\pi}{180}$
+        </div>
+        <div class="formula-item">
+            $\alpha_\text{mm} = \dfrac{1}{f}$ rad/mm &emsp; (image-plane linear plate scale; independent of pixel pitch)
         </div>
         <div class="formula-item">
             $$\text{FOV} = 2\arctan\!\!\left(\frac{N \cdot p}{2f}\right)$$
@@ -141,6 +147,14 @@ function calculate() {
     const alpha_arcsec = alpha_deg * 3600;
     const alpha_mrad   = alpha_rad * 1000;
     const alpha_urad   = alpha_rad * 1e6;
+
+    // Angle per mm (image-plane linear scale) — independent of pixel pitch
+    const mm_rad    = 1 / efl;
+    const mm_deg    = mm_rad * (180 / Math.PI);
+    const mm_arcmin = mm_deg * 60;
+    const mm_arcsec = mm_deg * 3600;
+    const mm_mrad   = mm_rad * 1000;
+    const mm_urad   = mm_rad * 1e6;
 
     const px_per_deg    = 1 / alpha_deg;
     const px_per_arcmin = 1 / alpha_arcmin;
@@ -205,6 +219,14 @@ function calculate() {
                 ${row('px / arcminute',  `${px_per_arcmin.toFixed(3)} px/′`)}
                 ${row('px / arcsecond',  `${px_per_arcsec.toFixed(4)} px/″`)}
                 ${row('px / mrad',       `${px_per_mrad.toFixed(3)} px/mrad`)}
+            </div>
+            <div class="results-box">
+                <h3>Angle per mm</h3>
+                ${row('arcsec/mm',  `${mm_arcsec.toFixed(4)} ″/mm`)}
+                ${row('arcmin/mm',  `${mm_arcmin.toFixed(5)} ′/mm`)}
+                ${row('deg/mm',     `${mm_deg.toFixed(6)} °/mm`)}
+                ${row('mrad/mm',    `${mm_mrad.toFixed(5)} mrad/mm`)}
+                ${row('µrad/mm',    `${mm_urad.toFixed(2)} µrad/mm`)}
             </div>
         </div>
         ${fovHtml}`;
