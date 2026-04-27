@@ -133,6 +133,11 @@
 
     <div id="results"></div>
 
+    <div id="diagram-wrap" style="background:white; border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-top:16px; display:none;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); margin-bottom:10px;">Optical Diagram</div>
+        <canvas id="lensCanvas" style="width:100%; display:block;"></canvas>
+    </div>
+
     <div class="chart-wrap" id="chart-wrap" style="display:none; height:400px;">
         <canvas id="conjugateChart"></canvas>
     </div>
@@ -143,6 +148,7 @@
 <script>
     let mode = 'image';
     let conjChart = null;
+    let diagData  = null;
 
     function setMode(m, btn) {
         mode = m;
@@ -233,8 +239,14 @@
 
             plotConjugates(f);
 
+            diagData = { f, z, zp, m: m_mag };
+            document.getElementById('diagram-wrap').style.display = 'block';
+            drawDiagram();
+
         } catch (e) {
             errEl.innerHTML = `<p class="error">${e.message}</p>`;
+            diagData = null;
+            document.getElementById('diagram-wrap').style.display = 'none';
         }
     }
 
@@ -304,6 +316,246 @@
             }
         });
     }
+
+    // ── Optical diagram ────────────────────────────────────────────────────────
+    function drawDiagram() {
+        const canvas = document.getElementById('lensCanvas');
+        if (!canvas || !diagData) return;
+
+        const W = canvas.parentElement.clientWidth || 680;
+        const H = 260;
+        canvas.width  = W;
+        canvas.height = H;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, W, H);
+
+        const { f, z, zp, m } = diagData;
+        if (!isFinite(f) || !isFinite(z)) return;
+
+        const absF = Math.abs(f);
+        const absZ = Math.abs(z);
+        const MAX_FL = 10;
+
+        const zFl  = absZ / absF;
+        const zpFl = isFinite(zp) ? Math.abs(zp) / absF : Infinity;
+
+        const objInScale = zFl  <= MAX_FL;
+        const imgInScale = isFinite(zpFl) && zpFl <= MAX_FL;
+
+        const objOnLeft  = z  <= 0;
+        const imgOnRight = zp >= 0;
+
+        // Focal lengths needed on each visible side (min 1.5f so focal ticks always show)
+        let leftFl  = 1.5;
+        let rightFl = 1.5;
+        if (objOnLeft)                            leftFl  = Math.max(leftFl,  Math.min(zFl,  MAX_FL));
+        else                                      rightFl = Math.max(rightFl, Math.min(zFl,  MAX_FL));
+        if (imgOnRight && isFinite(zpFl))         rightFl = Math.max(rightFl, Math.min(zpFl, MAX_FL));
+        else if (!imgOnRight && isFinite(zpFl))   leftFl  = Math.max(leftFl,  Math.min(zpFl, MAX_FL));
+
+        // Pixel scale
+        const MARGIN = 38;
+        const CX = Math.round(W / 2);
+        const AY = 128;  // optical axis y
+
+        const f_px = Math.min(58,
+            (CX - MARGIN) / (leftFl  + 0.5),
+            (W - CX - MARGIN) / (rightFl + 0.5)
+        );
+
+        // Capped positions (MAX_FL if out of scale)
+        const objFl = Math.min(zFl,  MAX_FL);
+        const imgFl = isFinite(zpFl) ? Math.min(zpFl, MAX_FL) : MAX_FL;
+
+        const objX = objOnLeft  ? CX - objFl * f_px : CX + objFl * f_px;
+        const hasImg = isFinite(zp) && isFinite(m);
+        const imgX = hasImg
+            ? (imgOnRight ? CX + imgFl * f_px : CX - imgFl * f_px)
+            : CX;
+
+        // Arrow heights
+        const OBJ_H = Math.min(AY - 22, 78);
+        const IMG_H = hasImg
+            ? (Math.abs(m) > 0.005 ? Math.min(Math.abs(m) * OBJ_H, AY - 18) : 0)
+            : 0;
+
+        // 1. Optical axis
+        ctx.save();
+        ctx.strokeStyle = '#c8c8c8';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(MARGIN - 4, AY);
+        ctx.lineTo(W - MARGIN, AY);
+        ctx.stroke();
+        ctx.fillStyle = '#c8c8c8';
+        ctx.beginPath();
+        ctx.moveTo(W - MARGIN + 7, AY);
+        ctx.lineTo(W - MARGIN,     AY - 3.5);
+        ctx.lineTo(W - MARGIN,     AY + 3.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // 2. Axis breaks
+        if (!objInScale) {
+            diagBreak(ctx, objOnLeft ? objX + 14 : objX - 14, AY);
+        }
+        if (hasImg && !imgInScale) {
+            diagBreak(ctx, imgOnRight ? imgX - 14 : imgX + 14, AY);
+        }
+
+        // 3. Focal point ticks
+        diagFP(ctx, CX - f_px, AY, 'F',  'left');
+        diagFP(ctx, CX + f_px, AY, "F'", 'right');
+
+        // 4. Lens symbol
+        diagLens(ctx, CX, AY, Math.min(AY - 4, 100), f > 0);
+
+        // 5. Object arrow (always upward; dashed if virtual object)
+        diagArrow(ctx, objX, AY, OBJ_H, true, z > 0, '#1a1a1a');
+
+        // 6. Image arrow
+        if (hasImg && IMG_H > 1) {
+            diagArrow(ctx, imgX, AY, IMG_H, m >= 0, zp < 0, '#007AFF');
+        } else if (hasImg) {
+            ctx.beginPath();
+            ctx.arc(imgX, AY, 3, 0, 2 * Math.PI);
+            ctx.fillStyle = '#007AFF';
+            ctx.fill();
+        }
+
+        // 7. Text labels
+        const SAN = '11px system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+        const SAN9 = '10px system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'center';
+
+        // "Object" above tip
+        ctx.fillStyle = '#1a1a1a';
+        ctx.font = SAN;
+        ctx.fillText('Object', objX, AY - OBJ_H - 8);
+
+        // z value below axis
+        ctx.fillStyle = '#999';
+        ctx.font = SAN9;
+        ctx.fillText((objInScale ? '' : '≫ ') + `z = ${z.toFixed(1)} mm`, objX, AY + 30);
+
+        if (hasImg) {
+            const imgUp    = m >= 0;
+            const imgTipY  = imgUp ? AY - IMG_H : AY + IMG_H;
+            const tipOff   = imgUp ? -8 : 15;
+
+            ctx.fillStyle = '#007AFF';
+            ctx.font = SAN;
+            if (IMG_H > 1) {
+                ctx.fillText('Image', imgX, imgTipY + tipOff);
+            } else {
+                ctx.fillText('Image', imgX, AY - 14);
+            }
+
+            ctx.font = SAN9;
+            ctx.globalAlpha = 0.75;
+            // Avoid overlapping with object label if they're close
+            const lblRow = Math.abs(imgX - objX) < 32 ? AY + 44 : AY + 30;
+            ctx.fillText((imgInScale ? '' : '≫ ') + `z' = ${zp.toFixed(1)} mm`, imgX, lblRow);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    function diagBreak(ctx, x, ay) {
+        ctx.save();
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1.5;
+        const h = 13;
+        // Two parallel diagonal slashes
+        [[x - 5, x + 3], [x + 2, x + 10]].forEach(([x1, x2]) => {
+            ctx.beginPath();
+            ctx.moveTo(x1, ay + h / 2);
+            ctx.lineTo(x2, ay - h / 2);
+            ctx.stroke();
+        });
+        ctx.restore();
+    }
+
+    function diagFP(ctx, x, ay, label, side) {
+        ctx.save();
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, ay - 5);
+        ctx.lineTo(x, ay + 5);
+        ctx.stroke();
+        ctx.fillStyle = '#aaa';
+        ctx.font = 'italic 11px Georgia, "Times New Roman", serif';
+        ctx.textAlign = side === 'right' ? 'left' : 'right';
+        ctx.fillText(label, x + (side === 'right' ? 4 : -4), ay + 18);
+        ctx.restore();
+    }
+
+    function diagLens(ctx, x, ay, halfH, converging) {
+        ctx.save();
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.fillStyle   = '#1a1a1a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, ay - halfH);
+        ctx.lineTo(x, ay + halfH);
+        ctx.stroke();
+        const hw = 7, hl = 12;
+        // Top arrowhead
+        const ty = ay - halfH, by = ay + halfH;
+        if (converging) {
+            // outward-pointing (converging)
+            [[ty,  1], [by, -1]].forEach(([tip, d]) => {
+                ctx.beginPath();
+                ctx.moveTo(x,      tip);
+                ctx.lineTo(x - hw, tip + d * hl);
+                ctx.lineTo(x + hw, tip + d * hl);
+                ctx.closePath();
+                ctx.fill();
+            });
+        } else {
+            // inward-pointing (diverging)
+            [[ty, hl, 1], [by, -hl, -1]].forEach(([base, off, d]) => {
+                ctx.beginPath();
+                ctx.moveTo(x,      base + off);
+                ctx.lineTo(x - hw, base);
+                ctx.lineTo(x + hw, base);
+                ctx.closePath();
+                ctx.fill();
+            });
+        }
+        ctx.restore();
+    }
+
+    function diagArrow(ctx, x, ay, height, arrowUp, dashed, color) {
+        if (height < 1) return;
+        const hl    = Math.min(10, height * 0.45);
+        const d     = arrowUp ? 1 : -1;
+        const yTip  = arrowUp ? ay - height : ay + height;
+        const yBase = yTip + d * hl;
+
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle   = color;
+        ctx.lineWidth   = 2;
+        if (dashed) ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, ay);
+        ctx.lineTo(x, yBase);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x,     yTip);
+        ctx.lineTo(x - 5, yBase);
+        ctx.lineTo(x + 5, yBase);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    window.addEventListener('resize', () => { if (diagData) drawDiagram(); });
 
     // Live updates
     ['inp-f','inp-z','inp-zp','inp-h','inp-D'].forEach(id => {
